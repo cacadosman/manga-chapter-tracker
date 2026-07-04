@@ -46,4 +46,9 @@
       setTimeout(saveIfNeeded, 500);
     },
   };
+
+  // Node.js test exports (module is undefined in browser === no-op).
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { MangaChapterTracker: window.MangaChapterTracker };
+  }
 })();
