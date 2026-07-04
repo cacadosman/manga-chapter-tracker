@@ -132,4 +132,4 @@ No other files need to change.
 
 ## License
 
-Personal use.
+[MIT](LICENSE)
