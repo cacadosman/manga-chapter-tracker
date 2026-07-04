@@ -10,6 +10,7 @@ A Chrome extension that automatically tracks manga, manhwa, and manhua chapters 
 - **MyAnimeList XML export** — Generates a `mangalist.xml` file matching the MyAnimeList manga list import schema. When a manga has a known MAL link, its database ID is included for direct matching. All entries have `update_on_import=1` so MAL actually processes them.
 - **JSON backup & restore** — Download a full backup of your tracked data and restore it on any machine.
 - **Multi-site support** — Filter the list by website via the site selector dropdown. Currently supports Comix.to; designed to add more sites easily.
+- **Paginated list** — Shows 5 manga per page with prev/next navigation, so the popup stays fast even with hundreds of tracked titles.
 - **100% local** — No accounts, no servers, no telemetry. All data lives in your browser via `chrome.storage.local`.
 
 ## Supported sites
@@ -32,7 +33,7 @@ A Chrome extension that automatically tracks manga, manhwa, and manhua chapters 
 Just read. When you open any chapter page, the extension extracts the manga title and chapter number and saves it. A badge on the extension icon shows how many manga you're tracking. Toggle auto-tracking off via the switch in the popup header if you want to pause.
 
 ### View & edit history
-Click the extension icon to open the popup. Click any manga card to expand its detail panel:
+Click the extension icon to open the popup. The list shows 5 manga per page &mdash; use the **Prev/Next** buttons or the search box to navigate. Click any manga card to expand its detail panel:
 - **Set current chapter** — Type a number and hit Save to roll back. Any chapters above that number are removed from history.
 - **History** — Up to 10 recent chapters, each with a "set" button to one-click restore.
 

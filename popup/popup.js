@@ -6,6 +6,8 @@ const $ = (sel) => document.querySelector(sel);
 
 let currentState = { manga: {}, settings: { autoTrack: true, siteFilter: 'all' } };
 let expandedKey = null;
+let currentPage = 1;
+const PER_PAGE = 5;
 
 function send(msg) {
   return new Promise((resolve) => {
@@ -44,14 +46,23 @@ function render() {
       '<div class="empty"><div class="big">\uD83D\uDCD6</div>' +
       '<strong>No chapters tracked yet</strong><br />' +
       'Open and read a chapter on a supported site &mdash; it will be saved automatically.</div>';
+    $('#pager').innerHTML = '';
     return;
   }
   if (list.length === 0) {
     container.innerHTML = '<div class="empty">No matches.</div>';
+    $('#pager').innerHTML = '';
     return;
   }
 
-  const parts = list.map((m) => {
+  const totalPages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  if (currentPage < 1) currentPage = 1;
+
+  const start = (currentPage - 1) * PER_PAGE;
+  const pageItems = list.slice(start, start + PER_PAGE);
+
+  const parts = pageItems.map((m) => {
     const readCount = Object.keys(m.readChapters || {}).length;
     const thumb = m.poster
       ? '<img class="thumb" src="' + escapeAttr(m.poster) + '" alt="" />'
@@ -79,6 +90,8 @@ function render() {
     );
   });
   container.innerHTML = parts.join('');
+
+  renderPager(currentPage, totalPages, list.length);
 
   container.querySelectorAll('.card').forEach((card) => {
     const key = card.getAttribute('data-key');
@@ -142,6 +155,27 @@ function render() {
         else if (e.key === 'Escape') { e.preventDefault(); expandedKey = null; render(); }
       });
     }
+  });
+}
+
+function renderPager(page, totalPages, totalItems) {
+  const pager = $('#pager');
+  if (totalPages <= 1) {
+    pager.innerHTML = '<span class="pager-info">' + totalItems + ' item' + (totalItems !== 1 ? 's' : '') + '</span>';
+    return;
+  }
+  const from = (page - 1) * PER_PAGE + 1;
+  const to = Math.min(page * PER_PAGE, totalItems);
+  pager.innerHTML =
+    '<button class="pager-btn" data-action="prev"' + (page <= 1 ? ' disabled' : '') + '>&lsaquo; Prev</button>' +
+    '<span class="pager-info">' + from + '-' + to + ' of ' + totalItems + ' &middot; page ' + page + '/' + totalPages + '</span>' +
+    '<button class="pager-btn" data-action="next"' + (page >= totalPages ? ' disabled' : '') + '>Next &rsaquo;</button>';
+
+  pager.querySelector('[data-action="prev"]').addEventListener('click', () => {
+    if (currentPage > 1) { currentPage--; render(); }
+  });
+  pager.querySelector('[data-action="next"]').addEventListener('click', () => {
+    if (currentPage < totalPages) { currentPage++; render(); }
   });
 }
 
@@ -212,6 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#siteFilter').addEventListener('change', async (e) => {
     await send({ type: MSG.SET_SETTING, key: 'siteFilter', value: e.target.value });
+    currentPage = 1;
     render();
   });
 
@@ -268,7 +303,10 @@ document.addEventListener('DOMContentLoaded', () => {
     refresh();
   });
 
-  $('#searchInput').addEventListener('input', render);
+  $('#searchInput').addEventListener('input', () => {
+    currentPage = 1;
+    render();
+  });
 
   refresh();
 });
