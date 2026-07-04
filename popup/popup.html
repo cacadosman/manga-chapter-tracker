@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manga Chapter Tracker</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="../icons/icon-48.png" alt="" class="brand-logo" width="28" height="28" />
+      <div class="brand-text">
+        <h1>Manga Tracker</h1>
+        <p id="subtitle">Loading&hellip;</p>
+      </div>
+    </div>
+    <label class="switch" title="Toggle automatic tracking">
+      <input type="checkbox" id="autoToggle" />
+      <span class="slider"></span>
+    </label>
+  </header>
+
+  <div class="toolbar">
+    <select id="siteFilter" class="site-select" title="Filter by website"></select>
+    <input type="search" id="searchInput" placeholder="Filter manga&hellip;" />
+  </div>
+
+  <div class="actions">
+    <button id="btnExport" class="btn btn-primary" title="Export to MyAnimeList manga list XML">Export MAL XML</button>
+    <button id="btnBackup" class="btn" title="Download a JSON backup of all tracked data">Backup JSON</button>
+    <button id="btnImport" class="btn" title="Restore tracked data from a JSON backup">Restore</button>
+    <button id="btnClear" class="btn btn-danger-ghost" title="Delete all tracked manga">Clear all</button>
+    <input type="file" id="fileImport" accept="application/json,.json" hidden />
+  </div>
+
+  <main id="list" class="list" aria-live="polite"></main>
+
+  <footer class="foot">
+    <span id="footStat"></span>
+    <span class="muted">100% local &middot; no account needed</span>
+  </footer>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

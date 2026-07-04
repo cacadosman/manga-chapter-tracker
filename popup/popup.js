@@ -1,0 +1,274 @@
+import { MSG, SITES } from '../src/shared/constants.js';
+import { buildMalXml } from '../src/shared/mal-export.js';
+import { timeAgo, formatNum, escapeHtml, escapeAttr, stamp } from '../src/shared/util.js';
+
+const $ = (sel) => document.querySelector(sel);
+
+let currentState = { manga: {}, settings: { autoTrack: true, siteFilter: 'all' } };
+let expandedKey = null;
+
+function send(msg) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(msg, (resp) => resolve(resp || { ok: false }));
+  });
+}
+
+async function refresh() {
+  const resp = await send({ type: MSG.GET_STATE });
+  if (resp && resp.ok && resp.tracker) {
+    currentState = resp.tracker;
+  }
+  render();
+}
+
+function render() {
+  const settings = currentState.settings || {};
+  const manga = currentState.manga || {};
+
+  $('#subtitle').textContent = Object.keys(manga).length + ' manga tracked';
+  $('#autoToggle').checked = settings.autoTrack !== false;
+  $('#footStat').textContent = Object.keys(manga).length + ' entries';
+
+  renderSiteFilter(settings.siteFilter || 'all');
+
+  const siteFilter = settings.siteFilter || 'all';
+  const q = ($('#searchInput').value || '').trim().toLowerCase();
+  const list = Object.values(manga)
+    .filter((m) => siteFilter === 'all' || m.source === siteFilter)
+    .filter((m) => !q || (m.title || '').toLowerCase().includes(q))
+    .sort((a, b) => (b.lastReadAt || 0) - (a.lastReadAt || 0));
+
+  const container = $('#list');
+  if (Object.keys(manga).length === 0) {
+    container.innerHTML =
+      '<div class="empty"><div class="big">\uD83D\uDCD6</div>' +
+      '<strong>No chapters tracked yet</strong><br />' +
+      'Open and read a chapter on a supported site &mdash; it will be saved automatically.</div>';
+    return;
+  }
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty">No matches.</div>';
+    return;
+  }
+
+  const parts = list.map((m) => {
+    const readCount = Object.keys(m.readChapters || {}).length;
+    const thumb = m.poster
+      ? '<img class="thumb" src="' + escapeAttr(m.poster) + '" alt="" />'
+      : '<div class="thumb-fallback">' + escapeHtml((m.title || '?').charAt(0).toUpperCase()) + '</div>';
+    const malBadge = m.malId
+      ? '<span class="badge mal" title="MyAnimeList id ' + m.malId + '">MAL</span>'
+      : '<span class="badge nomal" title="No MyAnimeList link">no MAL</span>';
+    const srcBadge = siteFilter === 'all'
+      ? '<span class="badge src" title="' + escapeAttr(m.source) + '">' + escapeHtml(m.source) + '</span>'
+      : '';
+    const isExpanded = expandedKey === m.key;
+    return (
+      '<div class="card' + (isExpanded ? ' expanded' : '') + '" data-key="' + escapeAttr(m.key) + '">' +
+        '<div class="card-head">' +
+          thumb +
+          '<div class="meta clickable">' +
+            '<div class="title-row"><span class="t">' + escapeHtml(m.title || 'Unknown') + '</span>' + malBadge + srcBadge + '</div>' +
+            '<div class="sub">Up to <span class="chap">Ch.' + escapeHtml(formatNum(m.maxChapter)) + '</span> &middot; ' + readCount + ' read &middot; ' + timeAgo(m.lastReadAt) + '</div>' +
+          '</div>' +
+          '<button class="icon-btn edit" title="Edit chapter" aria-label="Edit chapter">&#9998;</button>' +
+          '<button class="icon-btn del" title="Remove" aria-label="Remove">&times;</button>' +
+        '</div>' +
+        (isExpanded ? renderDetail(m) : '') +
+      '</div>'
+    );
+  });
+  container.innerHTML = parts.join('');
+
+  container.querySelectorAll('.card').forEach((card) => {
+    const key = card.getAttribute('data-key');
+
+    card.querySelector('.meta.clickable').addEventListener('click', () => {
+      expandedKey = (expandedKey === key) ? null : key;
+      render();
+    });
+
+    card.querySelector('.icon-btn.edit').addEventListener('click', (e) => {
+      e.stopPropagation();
+      expandedKey = key;
+      render();
+      const input = card.querySelector('.chap-input');
+      if (input) { input.focus(); input.select(); }
+    });
+
+    card.querySelector('.icon-btn.del').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await send({ type: MSG.DELETE_MANGA, key });
+      if (expandedKey === key) expandedKey = null;
+      toast('Removed', 'ok');
+      refresh();
+    });
+
+    card.querySelectorAll('.hist-set').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const num = btn.getAttribute('data-num');
+        await send({ type: MSG.SET_CHAPTER, key, chapterNumber: num });
+        toast('Set to Ch.' + formatNum(num), 'ok');
+        refresh();
+      });
+    });
+
+    const saveBtn = card.querySelector('.chap-save');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const input = card.querySelector('.chap-input');
+        const raw = (input.value || '').trim();
+        const val = parseFloat(raw);
+        if (raw === '' || !isFinite(val) || val < 0) { toast('Enter a valid number', 'err'); return; }
+        await send({ type: MSG.SET_CHAPTER, key, chapterNumber: val });
+        toast('Saved Ch.' + formatNum(val), 'ok');
+        refresh();
+      });
+    }
+    const cancelBtn = card.querySelector('.chap-cancel');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        expandedKey = null;
+        render();
+      });
+    }
+    const input = card.querySelector('.chap-input');
+    if (input) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+        else if (e.key === 'Escape') { e.preventDefault(); expandedKey = null; render(); }
+      });
+    }
+  });
+}
+
+function renderDetail(m) {
+  const history = Array.isArray(m.history) ? m.history : [];
+  const histHtml = history.length > 0
+    ? history.map((h) =>
+        '<div class="hist-item">' +
+          '<span class="hist-chap">Ch.' + escapeHtml(formatNum(h.number)) + '</span>' +
+          '<span class="hist-time">' + escapeHtml(timeAgo(h.readAt)) + '</span>' +
+          '<button class="hist-set" data-num="' + escapeAttr(h.number) + '" title="Set as current chapter">set</button>' +
+        '</div>'
+      ).join('')
+    : '<div class="hist-empty">No chapter history yet.</div>';
+
+  return (
+    '<div class="detail">' +
+      '<div class="detail-section">' +
+        '<div class="detail-label">Set current chapter</div>' +
+        '<div class="edit-row">' +
+          '<input type="number" class="chap-input" min="0" step="any" value="' + escapeAttr(formatNum(m.maxChapter)) + '" placeholder="e.g. 10" />' +
+          '<button class="btn-sm chap-save">Save</button>' +
+          '<button class="btn-sm ghost chap-cancel">Cancel</button>' +
+        '</div>' +
+        '<div class="edit-hint">Rolls back and deletes any chapters read above this value.</div>' +
+      '</div>' +
+      '<div class="detail-section">' +
+        '<div class="detail-label">History <span class="muted-count">(' + history.length + ')</span></div>' +
+        '<div class="hist-list">' + histHtml + '</div>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+function renderSiteFilter(current) {
+  const sel = $('#siteFilter');
+  const options = ['<option value="all">All sites</option>']
+    .concat(SITES.map((s) => '<option value="' + escapeAttr(s.id) + '">' + escapeHtml(s.label) + '</option>'));
+  sel.innerHTML = options.join('');
+  sel.value = current;
+}
+
+function toast(msg, kind) {
+  const old = document.querySelector('.toast');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' ' + kind : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1800);
+}
+
+async function downloadBlob(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  try {
+    await chrome.downloads.download({ url, filename, saveAs: true });
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  $('#autoToggle').addEventListener('change', async (e) => {
+    await send({ type: MSG.SET_SETTING, key: 'autoTrack', value: e.target.checked });
+    toast(e.target.checked ? 'Tracking on' : 'Tracking paused', e.target.checked ? 'ok' : '');
+  });
+
+  $('#siteFilter').addEventListener('change', async (e) => {
+    await send({ type: MSG.SET_SETTING, key: 'siteFilter', value: e.target.value });
+    render();
+  });
+
+  $('#btnExport').addEventListener('click', async () => {
+    const manga = currentState.manga || {};
+    const total = Object.keys(manga).length;
+    if (total === 0) { toast('Nothing to export yet', 'err'); return; }
+    const withMal = Object.values(manga).filter((m) => m.malId).length;
+    const xml = buildMalXml(currentState);
+    try {
+      await downloadBlob(xml, 'manga-mal-export_' + stamp() + '.xml', 'application/xml;charset=utf-8');
+      toast('Exported ' + total + ' titles (' + withMal + ' MAL-linked)', 'ok');
+    } catch (e) {
+      toast('Export failed', 'err');
+    }
+  });
+
+  $('#btnBackup').addEventListener('click', async () => {
+    const json = JSON.stringify(currentState, null, 2);
+    try {
+      await downloadBlob(json, 'manga-tracker-backup_' + stamp() + '.json', 'application/json');
+      toast('Backup downloaded', 'ok');
+    } catch (e) {
+      toast('Backup failed', 'err');
+    }
+  });
+
+  $('#btnImport').addEventListener('click', () => $('#fileImport').click());
+  $('#fileImport').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || !parsed.manga) {
+        throw new Error('Not a valid tracker backup');
+      }
+      if (!parsed.settings) parsed.settings = { autoTrack: true, siteFilter: 'all' };
+      await send({ type: MSG.REPLACE_STATE, tracker: parsed });
+      toast('Backup restored', 'ok');
+      refresh();
+    } catch (err) {
+      toast('Invalid backup file', 'err');
+    } finally {
+      e.target.value = '';
+    }
+  });
+
+  $('#btnClear').addEventListener('click', async () => {
+    if (Object.keys(currentState.manga || {}).length === 0) { toast('Already empty', ''); return; }
+    if (!confirm('Delete ALL tracked manga? This cannot be undone.')) return;
+    await send({ type: MSG.CLEAR_ALL });
+    toast('Cleared', 'ok');
+    refresh();
+  });
+
+  $('#searchInput').addEventListener('input', render);
+
+  refresh();
+});
