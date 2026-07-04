@@ -2,6 +2,10 @@
 
 A Chrome extension that automatically tracks manga, manhwa, and manhua chapters as you read them, then exports your list to a [MyAnimeList](https://myanimelist.net/)-compatible manga list XML for easy import.
 
+## Why?
+
+Manga reading sites can go down or disappear overnight, taking your reading progress with them. If you forgot to back up from the website before it's gone, that data is lost. This extension keeps a local copy of every title and chapter you read, so your progress is always safe and exportable &mdash; no matter what happens to the source site.
+
 ## Features
 
 - **Automatic tracking** — Detects when you open a chapter and records the title + chapter number. Handles both full page loads and single-page-app (SPA) navigation (e.g. clicking "Next chapter").
@@ -35,7 +39,7 @@ Just read. When you open any chapter page, the extension extracts the manga titl
 ### View & edit history
 Click the extension icon to open the popup. The list shows 5 manga per page &mdash; use the **Prev/Next** buttons or the search box to navigate. Click any manga card to expand its detail panel:
 - **Set current chapter** — Type a number and hit Save to roll back. Any chapters above that number are removed from history.
-- **History** — Up to 10 recent chapters, each with a "set" button to one-click restore.
+- **History** — Up to 10 recently-read chapters with timestamps. Click "set" on any entry to jump back to that chapter. Useful when you accidentally skip ahead (e.g. you were on chapter 10, misclicked chapter 30, and want to pick up from 10 again) or when you want to re-read a specific chapter.
 
 ### Export to MyAnimeList
 1. Click **Export MAL XML**.
