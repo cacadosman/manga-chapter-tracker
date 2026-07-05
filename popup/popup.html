@@ -15,17 +15,20 @@
         <p id="subtitle">Loading&hellip;</p>
       </div>
     </div>
-    <div class="toggles">
-      <label class="switch" title="Toggle automatic tracking">
-        <input type="checkbox" id="autoToggle" />
-        <span class="slider"></span>
-      </label>
-      <label class="switch" title="Auto-lookup MyAnimeList IDs for manga without a known link">
-        <input type="checkbox" id="malToggle" />
-        <span class="slider"></span>
-      </label>
-    </div>
   </header>
+
+  <div class="settings-row">
+    <label class="toggle-label" title="Automatically track chapters as you read">
+      <input type="checkbox" id="autoToggle" checked />
+      <span class="toggle-mark"></span>
+      <span class="toggle-text">Auto-track</span>
+    </label>
+    <label class="toggle-label" title="Look up MyAnimeList IDs for new manga via Jikan API">
+      <input type="checkbox" id="malToggle" checked />
+      <span class="toggle-mark"></span>
+      <span class="toggle-text">MAL lookup</span>
+    </label>
+  </div>
 
   <div class="toolbar">
     <select id="siteFilter" class="site-select" title="Filter by website"></select>
