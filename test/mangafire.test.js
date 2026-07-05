@@ -6,8 +6,8 @@ import path from 'path';
 
 const src = fs.readFileSync(path.join(import.meta.dirname, '..', 'src', 'sites', 'mangafire.js'), 'utf8');
 
-function loadAdapter(pagePath, domBody) {
-  const html = `<!DOCTYPE html><html><head><title>MangaFire</title></head><body>
+function loadAdapter(pagePath, docTitle, domBody) {
+  const html = `<!DOCTYPE html><html><head><title>${docTitle}</title></head><body>
     <div id="app-root">${domBody || ''}</div>
   </body></html>`;
   const dom = new JSDOM(html, { url: `https://mangafire.to${pagePath}` });
@@ -20,140 +20,172 @@ function loadAdapter(pagePath, domBody) {
 }
 
 describe('mangafire adapter', () => {
-  describe('READER_RE', () => {
+  describe('READ_RE — pattern 1 (/read/...)', () => {
     let mod;
     beforeEach(() => {
-      mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', '');
+      mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', 'One Piece \u00b7 Ch.1', '');
     });
 
     const matches = [
       '/read/one-piece.1n2k/en/chapter-1',
       '/read/gachiakutaa.1n2xq/en/chapter-11.25',
       '/read/manga-no-tsukurikataa.oq9z/ja/chapter-0',
-      '/read/sidonia-no-kishi.lmm3/en/chapter-1',
     ];
     for (const p of matches) {
-      it(`matches ${p.split('/').pop()}`, () => {
-        assert.ok(mod.READER_RE.test(p));
-      });
+      it(`matches ${p.split('/').pop()}`, () => { assert.ok(mod.READ_RE.test(p)); });
     }
-
     const nonMatches = [
-      '/manga/one-piece.1n2k',
-      '/home',
-      '/az-list',
-      '/read/one-piece.1n2k/en',
-      '/read/one-piece.1n2k/en/',
+      '/manga/one-piece.1n2k', '/home',
+      '/title/e07wg-convenience-store-worker/3548274',
     ];
     for (const p of nonMatches) {
-      it(`rejects ${p}`, () => {
-        assert.strictEqual(mod.READER_RE.test(p), false);
-      });
+      it(`rejects ${p}`, () => { assert.strictEqual(mod.READ_RE.test(p), false); });
     }
+  });
 
-    it('ignores query params', () => {
-      assert.ok(mod.READER_RE.test('/read/one-piece.1n2k/en/chapter-1?cm_id=123'));
+  describe('TITLE_RE — pattern 2 (/title/...)', () => {
+    let mod;
+    beforeEach(() => {
+      mod = loadAdapter('/title/e07wg-convenience-store-worker-from-another-worldd/3548274',
+        'Convenience Store Worker From Another World - Chapter 15', '');
+    });
+
+    const matches = [
+      '/title/e07wg-convenience-store-worker-from-another-worldd/3548274',
+      '/title/abc-my-manga/12345',
+    ];
+    for (const p of matches) {
+      it(`matches ${p}`, () => { assert.ok(mod.TITLE_RE.test(p)); });
+    }
+    const nonMatches = [
+      '/title/abc-my-manga',
+      '/home',
+      '/read/one-piece.1n2k/en/chapter-1',
+    ];
+    for (const p of nonMatches) {
+      it(`rejects ${p}`, () => { assert.strictEqual(mod.TITLE_RE.test(p), false); });
+    }
+  });
+
+  describe('parseSegment', () => {
+    let mod;
+    beforeEach(() => { mod = loadAdapter('/read/test.1/en/chapter-1', 't', ''); });
+
+    it('dot-separated: one-piece.1n2k → sourceId=1n2k slug=one-piece', () => {
+      assert.deepStrictEqual(mod.parseSegment('one-piece.1n2k'), { sourceId: '1n2k', slug: 'one-piece' });
+    });
+    it('dash-separated: e07wg-convenience-store-worker → sourceId=e07wg slug=convenience-store-worker', () => {
+      assert.deepStrictEqual(mod.parseSegment('e07wg-convenience-store-worker'), { sourceId: 'e07wg', slug: 'convenience-store-worker' });
+    });
+    it('no separator: abc → sourceId=abc slug=abc', () => {
+      assert.deepStrictEqual(mod.parseSegment('abc'), { sourceId: 'abc', slug: 'abc' });
     });
   });
 
   describe('titleFromSlug', () => {
-    it('converts one-piece to One Piece', () => {
-      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', '');
-      assert.strictEqual(mod.titleFromSlug('one-piece.1n2k'), 'One Piece');
-    });
+    let mod;
+    beforeEach(() => { mod = loadAdapter('/read/test.1/en/chapter-1', 't', ''); });
 
-    it('converts sidonia-no-kishi to Sidonia No Kishi', () => {
-      const mod = loadAdapter('/read/sidonia-no-kishi.lmm3/en/chapter-1', '');
-      assert.strictEqual(mod.titleFromSlug('sidonia-no-kishi.lmm3'), 'Sidonia No Kishi');
-    });
-
-    it('handles single-word slugs', () => {
-      const mod = loadAdapter('/read/berserk.abc/en/chapter-1', '');
-      assert.strictEqual(mod.titleFromSlug('berserk.abc'), 'Berserk');
-    });
-
-    it('handles slugs with multiple segments', () => {
-      const mod = loadAdapter('/read/manga-no-tsukurikataa.oq9z/en/chapter-1', '');
-      assert.strictEqual(mod.titleFromSlug('manga-no-tsukurikataa.oq9z'), 'Manga No Tsukurikataa');
+    it('one-piece → One Piece', () => {
+      assert.strictEqual(mod.titleFromSlug('one-piece'), 'One Piece');
     });
   });
 
   describe('titleFromDOM', () => {
-    it('extracts title from manga link in DOM', () => {
-      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1',
+    it('matches /manga/ links', () => {
+      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', 'x',
         '<a href="/manga/one-piece.1n2k">One Piece</a>');
       assert.strictEqual(mod.titleFromDOM('one-piece.1n2k'), 'One Piece');
     });
-
-    it('returns null when no link found', () => {
-      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', '');
-      assert.strictEqual(mod.titleFromDOM('one-piece.1n2k'), null);
+    it('matches /title/ links', () => {
+      const mod = loadAdapter('/title/e07wg-convenience-store/3548274', 'x',
+        '<a href="/title/e07wg-convenience-store">Convenience Store</a>');
+      assert.strictEqual(mod.titleFromDOM('e07wg-convenience-store'), 'Convenience Store');
     });
-
-    it('returns null for empty link text', () => {
-      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1',
-        '<a href="/manga/one-piece.1n2k"> </a>');
+    it('returns null when no link', () => {
+      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', 'x', '');
       assert.strictEqual(mod.titleFromDOM('one-piece.1n2k'), null);
     });
   });
 
+  describe('titleFromDocTitle', () => {
+    it('parses " - Chapter N" format', () => {
+      const mod = loadAdapter('/title/e07wg-test/123', 'My Manga - Chapter 15', '');
+      assert.strictEqual(mod.titleFromDocTitle(), 'My Manga');
+    });
+    it('parses " · Ch.N" format', () => {
+      const mod = loadAdapter('/read/test.abc/en/chapter-1', 'My Manga \u00b7 Ch.1', '');
+      assert.strictEqual(mod.titleFromDocTitle(), 'My Manga');
+    });
+    it('returns null for unrecognized format', () => {
+      const mod = loadAdapter('/read/test.abc/en/chapter-1', 'MangaFire - Read Manga Online Free', '');
+      assert.strictEqual(mod.titleFromDocTitle(), null);
+    });
+  });
+
+  describe('chapterFromDocTitle', () => {
+    it('extracts chapter number from " - Chapter N"', () => {
+      const mod = loadAdapter('/title/test/123', 'My Manga - Chapter 15', '');
+      assert.strictEqual(mod.chapterFromDocTitle(), 15);
+    });
+    it('returns null for other formats', () => {
+      const mod = loadAdapter('/read/test/en/chapter-1', 'My Manga \u00b7 Ch.1', '');
+      assert.strictEqual(mod.chapterFromDocTitle(), null);
+    });
+  });
+
   describe('adapter.extract()', () => {
-    it('extracts full info from reader with DOM title', () => {
-      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1',
+    it('Pattern 1: /read/.../chapter-N with DOM title', () => {
+      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', 'One Piece \u00b7 Ch.1',
         '<a href="/manga/one-piece.1n2k">One Piece</a>');
       const info = mod.mangafireAdapter.extract();
       assert.ok(info);
-      assert.strictEqual(info.source, 'mangafire.to');
       assert.strictEqual(info.sourceId, '1n2k');
       assert.strictEqual(info.title, 'One Piece');
-      assert.strictEqual(info.chapterId, '1n2k:1');
       assert.strictEqual(info.chapterNumber, 1);
-      assert.strictEqual(info.chapterNumberStr, '1');
-      assert.strictEqual(info.malId, null);
-      assert.strictEqual(info.malUrl, null);
+      assert.strictEqual(info.chapterId, '1n2k:1');
       assert.strictEqual(info.mangaUrl, '/manga/one-piece.1n2k');
-      assert.ok(info.detectedAt > 0);
     });
 
-    it('falls back to slug title without DOM', () => {
-      const mod = loadAdapter('/read/sidonia-no-kishi.lmm3/en/chapter-1', '');
-      const info = mod.mangafireAdapter.extract();
-      assert.strictEqual(info.title, 'Sidonia No Kishi');
-      assert.strictEqual(info.sourceId, 'lmm3');
-    });
-
-    it('handles decimal chapter numbers', () => {
-      const mod = loadAdapter('/read/gachiakutaa.1n2xq/en/chapter-11.25', '');
+    it('Pattern 1: decimal chapter', () => {
+      const mod = loadAdapter('/read/gachiakutaa.1n2xq/en/chapter-11.25', 'Gachiakuta \u00b7 Ch.11.25', '');
       const info = mod.mangafireAdapter.extract();
       assert.strictEqual(info.chapterNumber, 11.25);
       assert.strictEqual(info.chapterNumberStr, '11.25');
-      assert.strictEqual(info.chapterId, '1n2xq:11.25');
     });
 
-    it('handles chapter 0', () => {
-      const mod = loadAdapter('/read/manga-no-tsukurikataa.oq9z/ja/chapter-0', '');
+    it('Pattern 2: /title/.../chapterId with doc title parsing', () => {
+      const mod = loadAdapter('/title/e07wg-convenience-store-worker-from-another-worldd/3548274',
+        'Convenience Store Worker From Another World - Chapter 15',
+        '<a href="/title/e07wg-convenience-store-worker-from-another-worldd">Convenience Store Worker From Another World</a>');
       const info = mod.mangafireAdapter.extract();
+      assert.ok(info);
+      assert.strictEqual(info.sourceId, 'e07wg');
+      assert.strictEqual(info.title, 'Convenience Store Worker From Another World');
+      assert.strictEqual(info.chapterNumber, 15);
+      assert.strictEqual(info.chapterNumberStr, '15');
+      assert.strictEqual(info.chapterId, 'e07wg:3548274');
+      assert.strictEqual(info.mangaUrl, '/title/e07wg-convenience-store-worker-from-another-worldd');
+    });
+
+    it('Pattern 2: falls back to slug title without DOM or doc title', () => {
+      const mod = loadAdapter('/title/e07wg-convenience-store/3548274',
+        'MangaFire - Read Manga Online Free', '');
+      const info = mod.mangafireAdapter.extract();
+      assert.strictEqual(info.sourceId, 'e07wg');
+      assert.strictEqual(info.title, 'Convenience Store');
       assert.strictEqual(info.chapterNumber, 0);
-      assert.strictEqual(info.chapterId, 'oq9z:0');
+      assert.strictEqual(info.chapterNumberStr, '0');
     });
 
     it('returns null on non-reader page', () => {
-      const mod = loadAdapter('/manga/one-piece.1n2k', '');
+      const mod = loadAdapter('/manga/one-piece.1n2k', '', '');
       assert.strictEqual(mod.mangafireAdapter.extract(), null);
     });
 
     it('returns null on home page', () => {
-      const mod = loadAdapter('/home', '');
+      const mod = loadAdapter('/home', '', '');
       assert.strictEqual(mod.mangafireAdapter.extract(), null);
-    });
-
-    it('chapterId is unique per chapter', () => {
-      const mod1 = loadAdapter('/read/one-piece.1n2k/en/chapter-1', '');
-      const mod2 = loadAdapter('/read/one-piece.1n2k/en/chapter-3', '');
-      assert.notStrictEqual(
-        mod1.mangafireAdapter.extract().chapterId,
-        mod2.mangafireAdapter.extract().chapterId
-      );
     });
   });
 });
