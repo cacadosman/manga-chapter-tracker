@@ -68,17 +68,13 @@ function render() {
     const malBadge = m.malId
       ? '<span class="badge mal" title="MyAnimeList id ' + m.malId + '">MAL</span>'
       : '<span class="badge nomal" title="No MyAnimeList link">no MAL</span>';
-    const sources = Array.isArray(m.sources) && m.sources.length > 0 ? m.sources : [m.source].filter(Boolean);
-    const srcBadge = sources.map((s) =>
-      '<span class="badge src" title="' + escapeAttr(s) + '">' + escapeHtml(s) + '</span>'
-    ).join('');
     const isExpanded = expandedKey === m.key;
     return (
       '<div class="card' + (isExpanded ? ' expanded' : '') + '" data-key="' + escapeAttr(m.key) + '">' +
         '<div class="card-head">' +
           thumb +
           '<div class="meta clickable">' +
-            '<div class="title-row"><span class="t">' + escapeHtml(m.title || 'Unknown') + '</span>' + malBadge + srcBadge + '</div>' +
+            '<div class="title-row"><span class="t">' + escapeHtml(m.title || 'Unknown') + '</span>' + malBadge + '</div>' +
             '<div class="sub">Up to <span class="chap">Ch.' + escapeHtml(formatNum(m.maxChapter)) + '</span> &middot; ' + readCount + ' read &middot; ' + timeAgo(m.lastReadAt) + '</div>' +
           '</div>' +
           '<button class="icon-btn edit" title="Edit chapter" aria-label="Edit chapter">&#9998;</button>' +

@@ -17,7 +17,7 @@
 html, body {
   margin: 0;
   padding: 0;
-  width: 380px;
+  width: 480px;
   max-height: 560px;
   background: var(--bg);
   color: var(--text);
