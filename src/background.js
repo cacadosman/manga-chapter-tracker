@@ -1,6 +1,7 @@
 import { MSG } from './shared/constants.js';
 import * as storage from './shared/storage.js';
 import * as jikan from './shared/jikan.js';
+import { importFromMal } from './shared/mal-import.js';
 
 async function refreshBadge() {
   const tracker = await storage.getState();
@@ -57,6 +58,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         case MSG.SET_MAL_ID:
           await storage.setMalId(msg.key, msg.malId, msg.malUrl);
           sendResponse({ ok: true });
+          break;
+        case MSG.IMPORT_MAL:
+          if (!msg.entries || !Array.isArray(msg.entries)) {
+            sendResponse({ ok: false, error: 'invalid_entries' });
+          } else {
+            const stats = await importFromMal(msg.entries);
+            await refreshBadge();
+            sendResponse({ ok: true, stats });
+          }
           break;
         case MSG.DELETE_MANGA:
           await storage.deleteManga(msg.key);

@@ -35,11 +35,13 @@
   </div>
 
   <div class="actions">
-    <button id="btnExport" class="btn btn-primary" title="Export to MyAnimeList manga list XML">Export MAL XML</button>
+    <button id="btnExport" class="btn btn-primary" title="Export to MyAnimeList manga list XML">Export MAL</button>
+    <button id="btnImportMal" class="btn" title="Import manga list from MyAnimeList XML export">Import MAL</button>
     <button id="btnBackup" class="btn" title="Download a JSON backup of all tracked data">Backup JSON</button>
     <button id="btnImport" class="btn" title="Restore tracked data from a JSON backup">Restore</button>
     <button id="btnClear" class="btn btn-danger-ghost" title="Delete all tracked manga">Clear all</button>
     <input type="file" id="fileImport" accept="application/json,.json" hidden />
+    <input type="file" id="fileImportMal" accept="text/xml,application/xml,.xml" hidden />
   </div>
 
   <main id="list" class="list" aria-live="polite"></main>

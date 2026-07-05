@@ -34,12 +34,13 @@ function loadBackground(chrome) {
     .replace(/async function mangaKey/, 'function mangaKey_bg')
     .replace(/mangaKey\(/g, 'mangaKey_bg(');
 
-  const msgDef = 'const MSG = { SAVE_CHAPTER: "SAVE_CHAPTER", GET_STATE: "GET_STATE", SET_CHAPTER: "SET_CHAPTER", SET_MAL_ID: "SET_MAL_ID", DELETE_MANGA: "DELETE_MANGA", CLEAR_ALL: "CLEAR_ALL", SET_SETTING: "SET_SETTING", REPLACE_STATE: "REPLACE_STATE" };';
+  const msgDef = 'const MSG = { SAVE_CHAPTER: "SAVE_CHAPTER", GET_STATE: "GET_STATE", SET_CHAPTER: "SET_CHAPTER", SET_MAL_ID: "SET_MAL_ID", IMPORT_MAL: "IMPORT_MAL", DELETE_MANGA: "DELETE_MANGA", CLEAR_ALL: "CLEAR_ALL", SET_SETTING: "SET_SETTING", REPLACE_STATE: "REPLACE_STATE" };';
 
   const code = bgSrc
     .replace(/^import { MSG }.*$/m, msgDef)
     .replace(/^import \* as storage.*$/m, 'const storage = (() => {\n' + inlineStorage + '\nreturn { getState: getState_background, setState: setState_bg, mangaKey: mangaKey_bg, saveChapter: saveChapter_bg, setChapter: setChapter_bg, setMalId: setMalId_bg, markLookedUp: markLookedUp_bg, deleteManga: deleteManga_bg, clearAll: clearAll_bg, setSetting: setSetting_bg, replaceState: replaceState_bg };\n})();')
-    .replace(/^import \* as jikan.*$/m, 'const jikan = { async lookupByTitle() { return null; } };');
+    .replace(/^import \* as jikan.*$/m, 'const jikan = { async lookupByTitle() { return null; } };')
+    .replace(/^import { importFromMal }.*$/m, 'async function importFromMal(entries) { return { added: 0, updated: 0, total: (entries||[]).length }; }');
 
   new Function('chrome', code)(chrome);
 }

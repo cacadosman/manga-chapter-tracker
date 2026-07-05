@@ -1,5 +1,6 @@
 import { MSG } from '../src/shared/constants.js';
 import { buildMalXml } from '../src/shared/mal-export.js';
+import { parseMalXml } from '../src/shared/mal-import.js';
 import { timeAgo, formatNum, escapeHtml, escapeAttr, stamp } from '../src/shared/util.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -319,6 +320,30 @@ document.addEventListener('DOMContentLoaded', () => {
       refresh();
     } catch (err) {
       toast('Invalid backup file', 'err');
+    } finally {
+      e.target.value = '';
+    }
+  });
+
+  // Import from MyAnimeList XML
+  $('#btnImportMal').addEventListener('click', () => $('#fileImportMal').click());
+  $('#fileImportMal').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const entries = parseMalXml(text);
+      if (!entries || !entries.length) throw new Error('No entries found');
+      const resp = await send({ type: MSG.IMPORT_MAL, entries });
+      if (resp && resp.ok && resp.stats) {
+        const s = resp.stats;
+        toast('Imported ' + s.total + ' entries (' + s.added + ' new, ' + s.updated + ' updated)', 'ok');
+      } else {
+        toast('Import failed', 'err');
+      }
+      refresh();
+    } catch (err) {
+      toast('Invalid MAL XML file', 'err');
     } finally {
       e.target.value = '';
     }

@@ -11,7 +11,7 @@ Manga reading sites can go down or disappear overnight, taking your reading prog
 - **Automatic tracking** — Detects when you open a chapter and records the title + chapter number. Handles both full page loads and single-page-app (SPA) navigation (e.g. clicking "Next chapter").
 - **Manual chapter edit & rollback** — Accidentally clicked too far ahead? Open any manga's detail panel and roll the chapter back. Higher chapters are deleted from history so your export stays accurate.
 - **Chapter history** — Each manga remembers up to 10 recently-read chapters with timestamps. Click "set" on any history entry to restore.
-- **MyAnimeList XML export** — Generates a `mangalist.xml` file matching the MyAnimeList manga list import schema. When a manga has a known MAL link, its database ID is included for direct matching. All entries have `update_on_import=1` so MAL actually processes them.
+- **MyAnimeList XML import** — Bootstrap your tracker by importing your existing MyAnimeList manga list XML. Matches by MAL ID and merges with tracked progress &mdash; never loses chapters you've already read on other sites.
 - **JSON backup & restore** — Download a full backup of your tracked data and restore it on any machine.
 - **Multi-site support** — Tracks manga across multiple sites. Entries sharing the same MyAnimeList ID are automatically merged into one, combining reading history from all sources. Designed to add more sites easily via the adapter pattern.
 - **MyAnimeList ID lookup** — When a manga from MangaFire or other sites without embedded MAL links is first tracked, the extension optionally queries the free [Jikan API](https://jikan.moe) to find its MyAnimeList ID. Can be disabled in settings.
