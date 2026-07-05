@@ -30,13 +30,13 @@ export function parseMalXml(xmlString) {
 }
 
 // Import MAL entries into the tracker, merging with existing data.
-// lookupPosterFn is an optional async function (title) => { poster, malUrl } | null
-// (typically the Jikan client) used to enrich new entries with cover images.
-// Returns counts of added and updated entries.
-export async function importFromMal(entries, lookupPosterFn) {
+// Returns { added, updated, total, newKeys } — newKeys are the storage
+// keys of newly-created entries (for async poster enrichment).
+export async function importFromMal(entries) {
   const tracker = await getState();
   let added = 0;
   let updated = 0;
+  const newKeys = [];
 
   for (const e of entries) {
     if (!e.malId || !e.title || e.readChapters <= 0) continue;
@@ -52,25 +52,11 @@ export async function importFromMal(entries, lookupPosterFn) {
         existing.title = e.title;
       }
       existing.malUrl = existing.malUrl || ('https://myanimelist.net/manga/' + e.malId + '/');
-      // Don't change existing.malLookedUp — preserve whatever value it already has.
       existing.updatedAt = Date.now();
       updated++;
     } else {
       const key = 'mal:' + e.malId;
       const firstReadAt = e.startDate ? new Date(e.startDate + 'T00:00:00Z').getTime() : Date.now();
-      let poster = null;
-      let malLookedUp = false;
-
-      if (lookupPosterFn) {
-        try {
-          const result = await lookupPosterFn(e.title);
-          if (result && result.poster) {
-            poster = result.poster;
-            malLookedUp = true;
-          }
-        } catch (e) {}
-      }
-
       tracker.manga[key] = {
         key,
         source: 'myanimelist',
@@ -79,19 +65,20 @@ export async function importFromMal(entries, lookupPosterFn) {
         title: e.title,
         malId: e.malId,
         malUrl: 'https://myanimelist.net/manga/' + e.malId + '/',
-        poster,
+        poster: null,
         maxChapter: e.readChapters,
         lastChapter: e.readChapters,
         readChapters: {},
         history: [],
         firstReadAt,
         createdAt: Date.now(),
-        malLookedUp,
+        malLookedUp: false,
       };
+      newKeys.push(key);
       added++;
     }
   }
 
   await setState(tracker);
-  return { added, updated, total: entries.length };
+  return { added, updated, total: entries.length, newKeys };
 }

@@ -14,6 +14,26 @@ async function refreshBadge() {
   }
 }
 
+// Fetch posters for newly imported entries without blocking the UI.
+function enrichPosters(newKeys) {
+  (async () => {
+    for (const key of newKeys) {
+      try {
+        const tracker = await storage.getState();
+        const entry = tracker.manga[key];
+        if (!entry) continue;
+        const result = await jikan.lookupByTitle(entry.title);
+        if (result && !result.retry && result.poster) {
+          await storage.setMalId(key, entry.malId, null, result.poster);
+        } else if (result && !result.retry) {
+          // No poster but query succeeded — mark as looked up.
+          await storage.markLookedUp(key);
+        }
+      } catch (e) {}
+    }
+  })();
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     try {
@@ -63,12 +83,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           if (!msg.entries || !Array.isArray(msg.entries)) {
             sendResponse({ ok: false, error: 'invalid_entries' });
           } else {
-            const tracker = await storage.getState();
-            const lookupEnabled = tracker.settings.lookupMalIds !== false;
-            const lookupFn = lookupEnabled ? (title) => jikan.lookupByTitle(title) : null;
-            const stats = await importFromMal(msg.entries, lookupFn);
+            const stats = await importFromMal(msg.entries);
             await refreshBadge();
             sendResponse({ ok: true, stats });
+
+            // Fire-and-forget poster enrichment for new entries.
+            // Don't block the import — popup gets instant feedback.
+            const tracker = await storage.getState();
+            const lookupEnabled = tracker.settings.lookupMalIds !== false;
+            if (lookupEnabled && stats.newKeys.length > 0) {
+              enrichPosters(stats.newKeys);
+            }
           }
           break;
         case MSG.DELETE_MANGA:
