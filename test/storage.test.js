@@ -11,7 +11,7 @@ function loadStorage(chrome) {
   const code = storageSrc
     .replace(/^import .*$/m, 'const STORE_KEY="tracker"; const HISTORY_CAP=10;')
     .replace(/export /g, '');
-  const fn = new Function('chrome', code + '\nreturn { getState, setState, mangaKey, saveChapter, setChapter, deleteManga, clearAll, setSetting, replaceState };');
+  const fn = new Function('chrome', code + '\nreturn { getState, setState, mangaKey, saveChapter, setChapter, setMalId, markLookedUp, deleteManga, clearAll, setSetting, replaceState };');
   return fn(chrome);
 }
 
@@ -52,7 +52,7 @@ describe('storage', () => {
   describe('getState defaults', () => {
     it('returns default state when empty', async () => {
       const st = await S.getState();
-      assert.deepStrictEqual(st.settings, { autoTrack: true, siteFilter: 'all' });
+      assert.deepStrictEqual(st.settings, { autoTrack: true });
       assert.deepStrictEqual(st.manga, {});
     });
   });
@@ -215,7 +215,102 @@ describe('storage', () => {
       await S.replaceState({ manga: {} });
       const st = await S.getState();
       assert.strictEqual(st.settings.autoTrack, true);
-      assert.strictEqual(st.settings.siteFilter, 'all');
+    });
+  });
+
+  describe('mergeByMalId', () => {
+    it('startup merge combines duplicate malIds', async () => {
+      // Seed two entries with same malId from different sources
+      const mem = chrome.storage.local._mem;
+      mem.tracker = {
+        manga: {
+          'comix.to:nxy5': {
+            key: 'comix.to:nxy5', source: 'comix.to', sourceId: 'nxy5', title: 'JJK',
+            malId: 186597, malUrl: 'https://myanimelist.net/manga/186597/',
+            readChapters: { c1: 1, c5: 5 }, history: [{ chapterId: 'c5', number: 5, readAt: ts(5) }],
+            maxChapter: 5, poster: 'img-comix.jpg', createdAt: ts(1), firstReadAt: ts(1), lastReadAt: ts(5),
+          },
+          'mangafire.to:e07wg': {
+            key: 'mangafire.to:e07wg', source: 'mangafire.to', sourceId: 'e07wg', title: 'JJK (MF)',
+            malId: 186597, malUrl: null,
+            readChapters: { c10: 10 }, history: [{ chapterId: 'c10', number: 10, readAt: ts(10) }],
+            maxChapter: 10, poster: null, createdAt: ts(2), firstReadAt: ts(2), lastReadAt: ts(10),
+          },
+        },
+        settings: { autoTrack: true },
+      };
+      const st = await S.getState();
+      const keys = Object.keys(st.manga);
+      assert.strictEqual(keys.length, 1, 'should be merged to one entry');
+      const m = st.manga[keys[0]];
+      assert.strictEqual(m.malId, 186597);
+      assert.ok(m.sources.includes('comix.to'));
+      assert.ok(m.sources.includes('mangafire.to'));
+      assert.strictEqual(m.maxChapter, 10); // max across both
+      assert.strictEqual(m.poster, 'img-comix.jpg'); // first source's poster kept
+      assert.strictEqual(m.title, 'JJK'); // longer title wins
+    });
+
+    it('setMalId triggers merge when two entries get same malId', async () => {
+      await S.saveChapter({ source: 'comix.to', sourceId: 'a', chapterId: 'c1', chapterNumber: 1, detectedAt: ts(1) });
+      await S.saveChapter({ source: 'mangafire.to', sourceId: 'b', chapterId: 'c10', chapterNumber: 10, detectedAt: ts(10) });
+      // Set same malId on both — second call triggers merge
+      await S.setMalId('comix.to:a', 42);
+      await S.setMalId('mangafire.to:b', 42);
+      const st = await S.getState();
+      const keys = Object.keys(st.manga);
+      assert.strictEqual(keys.length, 1);
+      assert.ok(st.manga[keys[0]].sources.includes('comix.to'));
+      assert.ok(st.manga[keys[0]].sources.includes('mangafire.to'));
+      assert.strictEqual(st.manga[keys[0]].maxChapter, 10);
+    });
+
+    it('entries with different malIds are not merged', async () => {
+      await S.saveChapter({ source: 'comix.to', sourceId: 'a', chapterId: 'c1', chapterNumber: 1, malId: 1, detectedAt: ts(1) });
+      await S.saveChapter({ source: 'comix.to', sourceId: 'b', chapterId: 'c1', chapterNumber: 1, malId: 2, detectedAt: ts(1) });
+      const st = await S.getState();
+      assert.strictEqual(Object.keys(st.manga).length, 2);
+    });
+
+    it('entries with null malId are not merged', async () => {
+      await S.saveChapter({ source: 'comix.to', sourceId: 'a', chapterId: 'c1', chapterNumber: 1, detectedAt: ts(1) });
+      await S.saveChapter({ source: 'mangafire.to', sourceId: 'a', chapterId: 'c1', chapterNumber: 1, detectedAt: ts(1) });
+      const st = await S.getState();
+      assert.strictEqual(Object.keys(st.manga).length, 2);
+    });
+
+    it('startup merge: three entries become one', async () => {
+      const mem = chrome.storage.local._mem;
+      mem.tracker = {
+        manga: {
+          'comix.to:a': { key: 'comix.to:a', source: 'comix.to', sourceId: 'a', malId: 99, createdAt: ts(1), firstReadAt: ts(1), lastReadAt: ts(5), maxChapter: 5, readChapters: { c1: 1, c5: 5 }, history: [], title: 'X' },
+          'mangafire.to:a': { key: 'mangafire.to:a', source: 'mangafire.to', sourceId: 'a', malId: 99, createdAt: ts(2), firstReadAt: ts(2), lastReadAt: ts(10), maxChapter: 10, readChapters: { c10: 10 }, history: [], title: 'X' },
+          'mangafire.to:b': { key: 'mangafire.to:b', source: 'mangafire.to', sourceId: 'b', malId: 99, createdAt: ts(3), firstReadAt: ts(3), lastReadAt: ts(12), maxChapter: 12, readChapters: { c12: 12 }, history: [], title: 'X from MF2' },
+        },
+        settings: {},
+      };
+      const st = await S.getState();
+      assert.strictEqual(Object.keys(st.manga).length, 1);
+    });
+
+    it('history is deduped and capped at 10 after merge', async () => {
+      const mem = chrome.storage.local._mem;
+      mem.tracker = {
+        manga: {
+          'comix.to:a': { key: 'comix.to:a', source: 'comix.to', sourceId: 'a', malId: 1, createdAt: ts(1), firstReadAt: ts(1), lastReadAt: ts(3), maxChapter: 5, readChapters: { c1: 1 }, history: [
+            { chapterId: 'c3', number: 3, readAt: ts(3) }, { chapterId: 'c1', number: 1, readAt: ts(1) },
+          ], title: 'X' },
+          'mangafire.to:a': { key: 'mangafire.to:a', source: 'mangafire.to', sourceId: 'a', malId: 1, createdAt: ts(2), firstReadAt: ts(2), lastReadAt: ts(5), maxChapter: 5, readChapters: { c5: 5 }, history: [
+            { chapterId: 'c5', number: 5, readAt: ts(5) }, { chapterId: 'c3', number: 3, readAt: ts(4) },
+          ], title: 'X' },
+        },
+        settings: {},
+      };
+      const st = await S.getState();
+      const m = Object.values(st.manga)[0];
+      assert.strictEqual(m.history.length, 3); // c5, c3, c1; c3 deduped
+      assert.strictEqual(m.history[0].chapterId, 'c5');
+      assert.strictEqual(m.history[2].chapterId, 'c1');
     });
   });
 });

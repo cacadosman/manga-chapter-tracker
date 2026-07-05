@@ -101,14 +101,8 @@ html, body {
 .btn-danger-ghost:hover { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.5); }
 
 .toolbar {
-  display: flex; gap: 6px; padding: 0 12px 8px;
+  display: flex; padding: 0 12px 8px;
 }
-.site-select {
-  flex: 0 0 auto; background: var(--panel); border: 1px solid var(--border);
-  color: var(--text); padding: 0 8px; border-radius: 8px; font-size: 12px; outline: none; cursor: pointer;
-  max-width: 120px;
-}
-.site-select:focus { border-color: var(--accent); }
 .toolbar input[type="search"] {
   flex: 1 1 auto; min-width: 0; background: var(--panel); border: 1px solid var(--border);
   color: var(--text); padding: 8px 10px; border-radius: 8px; font-size: 12px; outline: none;

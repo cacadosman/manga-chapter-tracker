@@ -3,16 +3,30 @@ import { STORE_KEY, HISTORY_CAP } from './constants.js';
 export async function getState() {
   const { tracker } = await chrome.storage.local.get(STORE_KEY);
   if (!tracker || typeof tracker !== 'object') {
-    return { manga: {}, settings: { autoTrack: true, siteFilter: 'all' } };
+    return { manga: {}, settings: { autoTrack: true } };
   }
   if (!tracker.manga || typeof tracker.manga !== 'object') tracker.manga = {};
   if (!tracker.settings || typeof tracker.settings !== 'object') {
-    tracker.settings = { autoTrack: true, siteFilter: 'all' };
+    tracker.settings = { autoTrack: true };
   }
   if (typeof tracker.settings.autoTrack === 'undefined') tracker.settings.autoTrack = true;
   if (typeof tracker.settings.siteFilter === 'undefined') tracker.settings.siteFilter = 'all';
   migrate(tracker);
+  await startupMerge(tracker);
   return tracker;
+}
+
+// Merge any existing duplicate entries by MAL ID on startup.
+async function startupMerge(tracker) {
+  const seenMalIds = new Set();
+  for (const entry of Object.values(tracker.manga)) {
+    if (entry.malId && !seenMalIds.has(entry.malId)) {
+      seenMalIds.add(entry.malId);
+    }
+  }
+  for (const malId of seenMalIds) {
+    await mergeByMalId(tracker, malId);
+  }
 }
 
 // One-time migration: re-key entries from bare sourceId to composite source:sourceId.
@@ -87,6 +101,10 @@ export async function saveChapter(info) {
 
   tracker.manga[key] = entry;
   await setState(tracker);
+
+  // If this entry has a MAL ID, merge any duplicates.
+  if (entry.malId) await mergeByMalId(tracker, entry.malId);
+
   return { isNew, entry };
 }
 
@@ -133,7 +151,7 @@ export async function setSetting(k, v) {
 
 export async function replaceState(incoming) {
   if (!incoming.manga) incoming.manga = {};
-  if (!incoming.settings) incoming.settings = { autoTrack: true, siteFilter: 'all' };
+  if (!incoming.settings) incoming.settings = { autoTrack: true };
   await setState(incoming);
 }
 
@@ -148,6 +166,7 @@ export async function setMalId(key, malId, malUrl, poster) {
   existing.updatedAt = Date.now();
   tracker.manga[key] = existing;
   await setState(tracker);
+  if (malId) await mergeByMalId(tracker, malId);
   return existing;
 }
 
@@ -157,4 +176,40 @@ export async function markLookedUp(key) {
     tracker.manga[key].malLookedUp = true;
     await setState(tracker);
   }
+}
+
+// Merge all entries that share the same non-null malId.
+// Oldest entry (by createdAt) becomes the survivor. ReadChapters and
+// history are combined, metadata picks the best available values.
+async function mergeByMalId(tracker, malId) {
+  if (!malId) return;
+  const entries = Object.entries(tracker.manga).filter(([, e]) => e.malId === malId);
+  if (entries.length < 2) return;
+
+  entries.sort(([, a], [, b]) => (a.createdAt || 0) - (b.createdAt || 0));
+  const [primaryKey, primary] = entries[0];
+  const sources = new Set([primary.source].filter(Boolean));
+
+  for (let i = 1; i < entries.length; i++) {
+    const [otherKey, other] = entries[i];
+    Object.assign(primary.readChapters, other.readChapters || {});
+
+    const mergedHistory = [...(primary.history || []), ...(other.history || [])];
+    const seen = new Set();
+    primary.history = mergedHistory
+      .sort((a, b) => b.readAt - a.readAt)
+      .filter((h) => { const k = h.chapterId; if (seen.has(k)) return false; seen.add(k); return true; })
+      .slice(0, 10);
+
+    primary.maxChapter = Math.max(primary.maxChapter || 0, other.maxChapter || 0);
+    primary.firstReadAt = Math.min(primary.firstReadAt || Infinity, other.firstReadAt || Infinity);
+    primary.lastReadAt = Math.max(primary.lastReadAt || 0, other.lastReadAt || 0);
+    primary.title = (primary.title && primary.title.length >= 3) ? primary.title : (other.title || primary.title);
+    primary.poster = primary.poster || other.poster || null;
+    primary.malUrl = primary.malUrl || other.malUrl || null;
+    if (other.source) sources.add(other.source);
+    delete tracker.manga[otherKey];
+  }
+  primary.sources = [...sources];
+  primary.updatedAt = Date.now();
 }

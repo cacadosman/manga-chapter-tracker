@@ -1,10 +1,10 @@
-import { MSG, SITES } from '../src/shared/constants.js';
+import { MSG } from '../src/shared/constants.js';
 import { buildMalXml } from '../src/shared/mal-export.js';
 import { timeAgo, formatNum, escapeHtml, escapeAttr, stamp } from '../src/shared/util.js';
 
 const $ = (sel) => document.querySelector(sel);
 
-let currentState = { manga: {}, settings: { autoTrack: true, siteFilter: 'all' } };
+let currentState = { manga: {}, settings: { autoTrack: true } };
 let expandedKey = null;
 let currentPage = 1;
 const PER_PAGE = 5;
@@ -32,12 +32,8 @@ function render() {
   $('#malToggle').checked = settings.lookupMalIds !== false;
   $('#footStat').textContent = Object.keys(manga).length + ' entries';
 
-  renderSiteFilter(settings.siteFilter || 'all');
-
-  const siteFilter = settings.siteFilter || 'all';
   const q = ($('#searchInput').value || '').trim().toLowerCase();
   const list = Object.values(manga)
-    .filter((m) => siteFilter === 'all' || m.source === siteFilter)
     .filter((m) => !q || (m.title || '').toLowerCase().includes(q))
     .sort((a, b) => (b.lastReadAt || 0) - (a.lastReadAt || 0));
 
@@ -71,9 +67,10 @@ function render() {
     const malBadge = m.malId
       ? '<span class="badge mal" title="MyAnimeList id ' + m.malId + '">MAL</span>'
       : '<span class="badge nomal" title="No MyAnimeList link">no MAL</span>';
-    const srcBadge = siteFilter === 'all'
-      ? '<span class="badge src" title="' + escapeAttr(m.source) + '">' + escapeHtml(m.source) + '</span>'
-      : '';
+    const sources = Array.isArray(m.sources) && m.sources.length > 0 ? m.sources : [m.source].filter(Boolean);
+    const srcBadge = sources.map((s) =>
+      '<span class="badge src" title="' + escapeAttr(s) + '">' + escapeHtml(s) + '</span>'
+    ).join('');
     const isExpanded = expandedKey === m.key;
     return (
       '<div class="card' + (isExpanded ? ' expanded' : '') + '" data-key="' + escapeAttr(m.key) + '">' +
@@ -216,6 +213,8 @@ function renderDetail(m) {
     : '<div class="hist-empty">No chapter history yet.</div>';
 
   const malVal = m.malId || 0;
+  const sources = Array.isArray(m.sources) && m.sources.length > 0 ? m.sources : [m.source].filter(Boolean);
+  const sourcesStr = sources.join(', ');
 
   return (
     '<div class="detail">' +
@@ -238,19 +237,15 @@ function renderDetail(m) {
         '<div class="edit-hint">Matching MAL ID ensures import links to your list. 0 = skipped on import.</div>' +
       '</div>' +
       '<div class="detail-section">' +
+        '<div class="detail-label">Sources</div>' +
+        '<div class="edit-row"><span class="edit-hint">' + escapeHtml(sourcesStr) + '</span></div>' +
+      '</div>' +
+      '<div class="detail-section">' +
         '<div class="detail-label">History <span class="muted-count">(' + history.length + ')</span></div>' +
         '<div class="hist-list">' + histHtml + '</div>' +
       '</div>' +
     '</div>'
   );
-}
-
-function renderSiteFilter(current) {
-  const sel = $('#siteFilter');
-  const options = ['<option value="all">All sites</option>']
-    .concat(SITES.map((s) => '<option value="' + escapeAttr(s.id) + '">' + escapeHtml(s.label) + '</option>'));
-  sel.innerHTML = options.join('');
-  sel.value = current;
 }
 
 function toast(msg, kind) {
@@ -282,12 +277,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#malToggle').addEventListener('change', async (e) => {
     await send({ type: MSG.SET_SETTING, key: 'lookupMalIds', value: e.target.checked });
     toast(e.target.checked ? 'MAL lookup on' : 'MAL lookup off', e.target.checked ? 'ok' : '');
-  });
-
-  $('#siteFilter').addEventListener('change', async (e) => {
-    await send({ type: MSG.SET_SETTING, key: 'siteFilter', value: e.target.value });
-    currentPage = 1;
-    render();
   });
 
   $('#btnExport').addEventListener('click', async () => {
