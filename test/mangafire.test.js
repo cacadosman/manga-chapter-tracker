@@ -102,9 +102,43 @@ describe('mangafire adapter', () => {
         '<a href="/title/e07wg-convenience-store">Convenience Store</a>');
       assert.strictEqual(mod.titleFromDOM('e07wg-convenience-store'), 'Convenience Store');
     });
+    it('rejects generic word "Series" (picks next valid link)', () => {
+      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', 'x',
+        '<a href="/manga/one-piece.1n2k">Series</a><a href="/manga/one-piece.1n2k">One Piece</a>');
+      assert.strictEqual(mod.titleFromDOM('one-piece.1n2k'), 'One Piece');
+    });
+    it('rejects generic word "Manga"', () => {
+      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', 'x',
+        '<a href="/manga/one-piece.1n2k">Manga</a>');
+      assert.strictEqual(mod.titleFromDOM('one-piece.1n2k'), null);
+    });
+    it('rejects "Chapter 1" prefix', () => {
+      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', 'x',
+        '<a href="/manga/one-piece.1n2k">Chapter 1</a>');
+      assert.strictEqual(mod.titleFromDOM('one-piece.1n2k'), null);
+    });
     it('returns null when no link', () => {
       const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', 'x', '');
       assert.strictEqual(mod.titleFromDOM('one-piece.1n2k'), null);
+    });
+  });
+
+  describe('posterFromDOM', () => {
+    it('finds poster image from /manga/ link', () => {
+      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', 'x',
+        '<a href="/manga/one-piece.1n2k"><img src="https://cdn.example/op.jpg" /></a>');
+      const poster = mod.posterFromDOM('one-piece.1n2k');
+      assert.ok(poster && poster.includes('op.jpg'));
+    });
+    it('finds poster from /title/ link', () => {
+      const mod = loadAdapter('/title/e07wg-test/123', 'x',
+        '<a href="/title/e07wg-test"><img src="https://cdn.example/cs.jpg" /></a>');
+      const poster = mod.posterFromDOM('e07wg-test');
+      assert.ok(poster && poster.includes('cs.jpg'));
+    });
+    it('returns null when no image', () => {
+      const mod = loadAdapter('/read/one-piece.1n2k/en/chapter-1', 'x', '');
+      assert.strictEqual(mod.posterFromDOM('one-piece.1n2k'), null);
     });
   });
 

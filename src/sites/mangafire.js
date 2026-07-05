@@ -35,14 +35,44 @@
     return { sourceId: mangaSegment, slug: mangaSegment };
   }
 
+  // Common navigation/breadcrumb labels that are never manga titles.
+  const GENERIC_WORDS = new Set([
+    'series', 'manga', 'home', 'browse', 'reader', 'chapter', 'chapters',
+    'search', 'sign in', 'login', 'register', 'trending', 'latest', 'popular',
+    'new', 'hot', 'filter', 'az', 'list', 'page', 'next', 'prev', 'previous',
+    'all', 'top', 'read', 'info',
+  ]);
+
+  function isValidTitle(text) {
+    if (!text || text.length < 3) return false;
+    const lower = text.toLowerCase();
+    // Reject single generic words.
+    if (GENERIC_WORDS.has(lower)) return false;
+    if (lower.startsWith('chapter ') || lower.startsWith('vol ') || lower.startsWith('volume ')) return false;
+    return true;
+  }
+
   // Try to extract the manga title from the rendered DOM.
   function titleFromDOM(mangaSegment) {
     try {
-      const link = document.querySelector(`a[href*="/manga/${mangaSegment}"],a[href*="/title/${mangaSegment}"]`);
-      if (link) {
+      const links = document.querySelectorAll(
+        `a[href*="/manga/${mangaSegment}"],a[href*="/title/${mangaSegment}"]`
+      );
+      for (const link of links) {
         const text = link.textContent.trim();
-        if (text && text.length > 1) return text;
+        if (isValidTitle(text)) return text;
       }
+    } catch (e) {}
+    return null;
+  }
+
+  // Try to find the manga poster/cover image from the DOM.
+  function posterFromDOM(mangaSegment) {
+    try {
+      const link = document.querySelector(
+        `a[href*="/manga/${mangaSegment}"] img,a[href*="/title/${mangaSegment}"] img`
+      );
+      if (link && link.src && !link.src.includes('data:')) return link.src;
     } catch (e) {}
     return null;
   }
@@ -98,7 +128,8 @@
           chapterId,
           chapterNumber,
           chapterNumberStr: numStr,
-          malId: null, malUrl: null, poster: null,
+          malId: null, malUrl: null,
+          poster: posterFromDOM(mangaSegment) || null,
           mangaUrl: '/manga/' + mangaSegment,
           detectedAt: Date.now(),
         };
@@ -111,7 +142,7 @@
         const chapterIdNum = m[2];
         const { sourceId, slug } = parseSegment(mangaSegment);
         const docTitle = titleFromDocTitle();
-        const title = titleFromDOM(mangaSegment) || docTitle || titleFromSlug(slug);
+        const title = docTitle || titleFromDOM(mangaSegment) || titleFromSlug(slug);
         const chapFromTitle = chapterFromDocTitle();
         const chapterNumber = chapFromTitle != null ? chapFromTitle : 0;
         const numStr = chapFromTitle != null ? String(chapFromTitle) : '0';
@@ -124,7 +155,8 @@
           chapterId,
           chapterNumber,
           chapterNumberStr: numStr,
-          malId: null, malUrl: null, poster: null,
+          malId: null, malUrl: null,
+          poster: posterFromDOM(mangaSegment) || null,
           mangaUrl: '/title/' + mangaSegment,
           detectedAt: Date.now(),
         };
@@ -138,6 +170,6 @@
 
   // Node.js test exports (module is undefined in browser === no-op).
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { READ_RE, TITLE_RE, parseSegment, titleFromSlug, titleFromDOM, titleFromDocTitle, chapterFromDocTitle, mangafireAdapter };
+    module.exports = { READ_RE, TITLE_RE, parseSegment, titleFromSlug, titleFromDOM, titleFromDocTitle, chapterFromDocTitle, posterFromDOM, isValidTitle, mangafireAdapter };
   }
 })();
