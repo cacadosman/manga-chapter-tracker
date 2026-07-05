@@ -16,7 +16,7 @@ Manga reading sites can go down or disappear overnight, taking your reading prog
 - **JSON backup & restore** — Download a full backup of your tracked data and restore it on any machine.
 - **Multi-site support** — Tracks manga across multiple sites. Entries sharing the same MyAnimeList ID are automatically merged into one, combining reading history and keeping the best metadata from all sources. Sources are shown in each manga's detail panel. Designed to add more sites easily via the adapter pattern.
 - **MyAnimeList ID lookup** — When a manga from MangaFire or other sites without embedded MAL links is first tracked, the extension optionally queries the free [Jikan API](https://jikan.moe) to find its MyAnimeList ID and cover image. Can be disabled in settings.
-- **Paginated list** — Shows 10 manga per page with prev/next navigation. Only the manga list scrolls &mdash; all controls stay visible.
+- **Paginated list** — Shows 5 manga per page with prev/next navigation. Only the manga list scrolls &mdash; all controls stay visible.
 - **100% local storage** — All reading data lives in your browser via `chrome.storage.local`. No accounts or servers.
 
 ## Supported sites
@@ -40,7 +40,7 @@ Manga reading sites can go down or disappear overnight, taking your reading prog
 Just read. When you open any chapter page, the extension extracts the manga title and chapter number and saves it. A badge on the extension icon shows how many manga you're tracking. Toggle auto-tracking off via the switch in the popup header if you want to pause.
 
 ### View & edit history
-Click the extension icon to open the popup. The list shows 10 manga per page &mdash; use the **Prev/Next** buttons or the search box to navigate. Click any manga card to expand its detail panel:
+Click the extension icon to open the popup. The list shows 5 manga per page &mdash; use the **Prev/Next** buttons or the search box to navigate. Click any manga card to expand its detail panel:
 - **Set current chapter** — Type a number and hit Save to roll back. Any chapters above that number are removed from history.
 - **MyAnimeList ID** — View or manually edit the MAL ID to link a manga to your MyAnimeList list for accurate export.
 - **Sources** — Which sites this manga was tracked from (or `myanimelist` for imported entries).

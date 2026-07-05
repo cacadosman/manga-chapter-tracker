@@ -1,10 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
-// Pure pagination math extracted from popup.js render() logic.
-// These replicate the exact algorithm used in the popup.
-
-const PER_PAGE = 10;
+const PER_PAGE = 5;
 
 function computePaginated(list, page) {
   const totalPages = Math.max(1, Math.ceil(list.length / PER_PAGE));
@@ -20,43 +17,38 @@ describe('pagination', () => {
   const makeList = (n) => Array.from({ length: n }, (_, i) => ({ key: 'm' + i, title: 'Item ' + i }));
 
   describe('basics', () => {
-    it('returns 10 items on page 1 from 20 items', () => {
-      const r = computePaginated(makeList(20), 1);
-      assert.strictEqual(r.items.length, 10);
+    it('returns 5 items on page 1 from 10 items', () => {
+      const r = computePaginated(makeList(10), 1);
+      assert.strictEqual(r.items.length, 5);
       assert.strictEqual(r.page, 1);
       assert.strictEqual(r.totalPages, 2);
       assert.strictEqual(r.from, 1);
+      assert.strictEqual(r.to, 5);
+    });
+    it('returns last 5 items on page 2 from 10 items', () => {
+      const r = computePaginated(makeList(10), 2);
+      assert.strictEqual(r.items.length, 5);
+      assert.strictEqual(r.from, 6);
       assert.strictEqual(r.to, 10);
     });
-
-    it('returns last 10 items on page 2 from 20 items', () => {
-      const r = computePaginated(makeList(20), 2);
-      assert.strictEqual(r.items.length, 10);
-      assert.strictEqual(r.from, 11);
-      assert.strictEqual(r.to, 20);
-    });
-
     it('last page has fewer items', () => {
-      const r = computePaginated(makeList(12), 2);
+      const r = computePaginated(makeList(7), 2);
       assert.strictEqual(r.items.length, 2);
-      assert.strictEqual(r.from, 11);
-      assert.strictEqual(r.to, 12);
+      assert.strictEqual(r.from, 6);
+      assert.strictEqual(r.to, 7);
     });
-
     it('single page', () => {
       const r = computePaginated(makeList(3), 1);
       assert.strictEqual(r.items.length, 3);
       assert.strictEqual(r.totalPages, 1);
     });
-
-    it('exactly 10 items = 1 page', () => {
-      const r = computePaginated(makeList(10), 1);
-      assert.strictEqual(r.items.length, 10);
+    it('exactly 5 items = 1 page', () => {
+      const r = computePaginated(makeList(5), 1);
+      assert.strictEqual(r.items.length, 5);
       assert.strictEqual(r.totalPages, 1);
     });
-
-    it('exactly 11 items = 2 pages', () => {
-      const r = computePaginated(makeList(11), 2);
+    it('exactly 6 items = 2 pages', () => {
+      const r = computePaginated(makeList(6), 2);
       assert.strictEqual(r.items.length, 1);
       assert.strictEqual(r.totalPages, 2);
     });
@@ -64,24 +56,22 @@ describe('pagination', () => {
 
   describe('boundary clamping', () => {
     it('clamps page 0 to page 1', () => {
-      const r = computePaginated(makeList(20), 0);
+      const r = computePaginated(makeList(10), 0);
       assert.strictEqual(r.page, 1);
     });
-
     it('clamps negative page to page 1', () => {
-      const r = computePaginated(makeList(20), -5);
+      const r = computePaginated(makeList(10), -5);
       assert.strictEqual(r.page, 1);
     });
-
     it('clamps page beyond total to last page', () => {
-      const r = computePaginated(makeList(20), 99);
+      const r = computePaginated(makeList(10), 99);
       assert.strictEqual(r.page, 2);
     });
   });
 
   describe('delete-on-last-page edge case', () => {
     it('after deleting last item the page auto-clamps', () => {
-      const r = computePaginated(makeList(10), 2);
+      const r = computePaginated(makeList(5), 2);
       assert.strictEqual(r.page, 1);
       assert.strictEqual(r.totalPages, 1);
     });
