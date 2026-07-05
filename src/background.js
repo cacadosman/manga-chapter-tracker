@@ -63,7 +63,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           if (!msg.entries || !Array.isArray(msg.entries)) {
             sendResponse({ ok: false, error: 'invalid_entries' });
           } else {
-            const stats = await importFromMal(msg.entries);
+            const tracker = await storage.getState();
+            const lookupEnabled = tracker.settings.lookupMalIds !== false;
+            const lookupFn = lookupEnabled ? (title) => jikan.lookupByTitle(title) : null;
+            const stats = await importFromMal(msg.entries, lookupFn);
             await refreshBadge();
             sendResponse({ ok: true, stats });
           }

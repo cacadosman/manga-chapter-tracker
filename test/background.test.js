@@ -40,7 +40,7 @@ function loadBackground(chrome) {
     .replace(/^import { MSG }.*$/m, msgDef)
     .replace(/^import \* as storage.*$/m, 'const storage = (() => {\n' + inlineStorage + '\nreturn { getState: getState_background, setState: setState_bg, mangaKey: mangaKey_bg, saveChapter: saveChapter_bg, setChapter: setChapter_bg, setMalId: setMalId_bg, markLookedUp: markLookedUp_bg, deleteManga: deleteManga_bg, clearAll: clearAll_bg, setSetting: setSetting_bg, replaceState: replaceState_bg };\n})();')
     .replace(/^import \* as jikan.*$/m, 'const jikan = { async lookupByTitle() { return null; } };')
-    .replace(/^import { importFromMal }.*$/m, 'async function importFromMal(entries) { return { added: 0, updated: 0, total: (entries||[]).length }; }');
+    .replace(/^import { importFromMal }.*$/m, 'async function importFromMal(entries, lookupFn) { return { added: 0, updated: 0, total: (entries||[]).length }; }');
 
   new Function('chrome', code)(chrome);
 }
