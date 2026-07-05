@@ -11,11 +11,12 @@ Manga reading sites can go down or disappear overnight, taking your reading prog
 - **Automatic tracking** — Detects when you open a chapter and records the title + chapter number. Handles both full page loads and single-page-app (SPA) navigation (e.g. clicking "Next chapter").
 - **Manual chapter edit & rollback** — Accidentally clicked too far ahead? Open any manga's detail panel and roll the chapter back. Higher chapters are deleted from history so your export stays accurate.
 - **Chapter history** — Each manga remembers up to 10 recently-read chapters with timestamps. Click "set" on any history entry to restore.
-- **MyAnimeList XML import** — Bootstrap your tracker by importing your existing MyAnimeList manga list XML. Matches by MAL ID and merges with tracked progress &mdash; never loses chapters you've already read on other sites.
+- **MyAnimeList XML import** — Bootstrap your tracker by importing your existing MyAnimeList manga list XML. Matches by MAL ID and merges with tracked progress &mdash; never loses chapters you've already read on other sites. Posters are fetched in the background without blocking the UI.
+- **MyAnimeList XML export** — Generates a `mangalist.xml` file matching the MyAnimeList manga list import schema. All entries have `update_on_import=1` so MAL actually processes them.
 - **JSON backup & restore** — Download a full backup of your tracked data and restore it on any machine.
-- **Multi-site support** — Tracks manga across multiple sites. Entries sharing the same MyAnimeList ID are automatically merged into one, combining reading history from all sources. Designed to add more sites easily via the adapter pattern.
-- **MyAnimeList ID lookup** — When a manga from MangaFire or other sites without embedded MAL links is first tracked, the extension optionally queries the free [Jikan API](https://jikan.moe) to find its MyAnimeList ID. Can be disabled in settings.
-- **Paginated list** — Shows 5 manga per page with prev/next navigation, so the popup stays fast even with hundreds of tracked titles.
+- **Multi-site support** — Tracks manga across multiple sites. Entries sharing the same MyAnimeList ID are automatically merged into one, combining reading history and keeping the best metadata from all sources. Sources are shown in each manga's detail panel. Designed to add more sites easily via the adapter pattern.
+- **MyAnimeList ID lookup** — When a manga from MangaFire or other sites without embedded MAL links is first tracked, the extension optionally queries the free [Jikan API](https://jikan.moe) to find its MyAnimeList ID and cover image. Can be disabled in settings.
+- **Paginated list** — Shows 10 manga per page with prev/next navigation. Only the manga list scrolls &mdash; all controls stay visible.
 - **100% local storage** — All reading data lives in your browser via `chrome.storage.local`. No accounts or servers.
 
 ## Supported sites
@@ -39,9 +40,19 @@ Manga reading sites can go down or disappear overnight, taking your reading prog
 Just read. When you open any chapter page, the extension extracts the manga title and chapter number and saves it. A badge on the extension icon shows how many manga you're tracking. Toggle auto-tracking off via the switch in the popup header if you want to pause.
 
 ### View & edit history
-Click the extension icon to open the popup. The list shows 5 manga per page &mdash; use the **Prev/Next** buttons or the search box to navigate. Click any manga card to expand its detail panel:
+Click the extension icon to open the popup. The list shows 10 manga per page &mdash; use the **Prev/Next** buttons or the search box to navigate. Click any manga card to expand its detail panel:
 - **Set current chapter** — Type a number and hit Save to roll back. Any chapters above that number are removed from history.
+- **MyAnimeList ID** — View or manually edit the MAL ID to link a manga to your MyAnimeList list for accurate export.
+- **Sources** — Which sites this manga was tracked from (or `myanimelist` for imported entries).
 - **History** — Up to 10 recently-read chapters with timestamps. Click "set" on any entry to jump back to that chapter. Useful when you accidentally skip ahead (e.g. you were on chapter 10, misclicked chapter 30, and want to pick up from 10 again) or when you want to re-read a specific chapter.
+
+### Import from MyAnimeList
+1. Export your manga list from MyAnimeList → click **Export** on your manga list page.
+2. In the extension popup, click **Import MAL** and choose the `.xml` file.
+3. The import matches entries by MAL ID:
+   - **New titles** are added to your tracker.
+   - **Existing titles** (already tracked on a site) are merged — your reading progress is never overwritten.
+4. Cover images are fetched in the background (respects the MAL lookup toggle).
 
 ### Export to MyAnimeList
 1. Click **Export MAL XML**.
@@ -64,20 +75,26 @@ manifest.json
 icons/                      Extension icons (16/48/128px PNG)
 tools/gen-icons.js          Dependency-free icon generator (node tools/gen-icons.js)
 src/
-  background.js             Service worker (ES module) — message router + badge
+  background.js             Service worker (ES module) — message router, badge, Jikan enrichment
   shared/
     constants.js            Message types, storage key, site registry
-    storage.js              Persistent storage (chrome.storage.local) + migration
-    mal-export.js           MyAnimeList XML builder
+    storage.js              Persistent storage (chrome.storage.local), migration, merge
+    jikan.js                Jikan API client (MAL ID lookup by title)
+    mal-export.js           MyAnimeList XML export builder
+    mal-import.js           MyAnimeList XML import parser + merge logic
     util.js                 Shared helpers (escaping, date formatting, etc.)
   content/
     tracker.js              Generic tracker: SPA poll loop, auto-track check
   sites/
-    comix.js                Comix.to adapter: URL regex + metadata extraction
+    comix.js                Comix.to adapter
+    mangafire.js            MangaFire adapter (two URL patterns)
 popup/
   popup.html                Popup UI
   popup.css                 Popup styles
   popup.js                  Popup logic (ES module, imports shared/)
+test/
+  *.test.js                 Unit tests (149 passing with node:test)
+  helpers/chrome-mock.js    Shared chrome.* mock for tests
 ```
 
 ### How site adapters work
@@ -97,10 +114,11 @@ Each tracked manga is stored under a composite key `source:sourceId` (e.g. `comi
 {
   source: 'comix.to',
   sourceId: 'nxy5',
+  sources: ['comix.to'],    // all sites this manga was tracked from (empty for imports)
   title: 'Jujutsu Kaisen Modulo',
-  malId: 186597,          // MyAnimeList database ID (if known)
-  malLookedUp: true,     // whether Jikan lookup has been attempted
-  maxChapter: 24,         // Highest chapter read (drives MAL export)
+  malId: 186597,            // MyAnimeList database ID (if known)
+  malLookedUp: true,        // whether Jikan lookup has been attempted
+  maxChapter: 24,           // Highest chapter read (drives MAL export)
   readChapters: { '5499060': 1, '5498894': 3, ... },
   history: [{ chapterId, number, readAt }, ...],  // newest-first, capped at 10
   firstReadAt: 1752000000000,
@@ -119,6 +137,12 @@ This extension:
 Uninstalling the extension clears all stored data.
 
 ## Development
+
+### Run tests
+```bash
+npm test          # 149 unit tests with node:test
+```
+Tests cover storage (migration, merge, rollback), MAL XML export/import, Jikan API client, both site adapters, background message routing, and pagination math.
 
 ### Regenerate icons
 ```bash
