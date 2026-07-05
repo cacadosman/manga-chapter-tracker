@@ -29,6 +29,7 @@ function render() {
 
   $('#subtitle').textContent = Object.keys(manga).length + ' manga tracked';
   $('#autoToggle').checked = settings.autoTrack !== false;
+  $('#malToggle').checked = settings.lookupMalIds !== false;
   $('#footStat').textContent = Object.keys(manga).length + ' entries';
 
   renderSiteFilter(settings.siteFilter || 'all');
@@ -155,6 +156,29 @@ function render() {
         else if (e.key === 'Escape') { e.preventDefault(); expandedKey = null; render(); }
       });
     }
+
+    // MAL ID save/clear.
+    const malSave = card.querySelector('.mal-save');
+    if (malSave) {
+      malSave.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const malInput = card.querySelector('.mal-input');
+        const raw = (malInput.value || '').trim();
+        const val = parseInt(raw, 10);
+        if (raw !== '' && (!isFinite(val) || val < 0)) { toast('Enter a valid MAL ID or 0', 'err'); return; }
+        await send({ type: MSG.SET_MAL_ID, key, malId: val || 0 });
+        toast('MAL ID saved', 'ok');
+        refresh();
+      });
+    }
+    const malClear = card.querySelector('.mal-clear');
+    if (malClear) {
+      malClear.addEventListener('click', (e) => {
+        e.stopPropagation();
+        card.querySelector('.mal-input').value = '0';
+        malSave.click();
+      });
+    }
   });
 }
 
@@ -191,6 +215,8 @@ function renderDetail(m) {
       ).join('')
     : '<div class="hist-empty">No chapter history yet.</div>';
 
+  const malVal = m.malId || 0;
+
   return (
     '<div class="detail">' +
       '<div class="detail-section">' +
@@ -201,6 +227,15 @@ function renderDetail(m) {
           '<button class="btn-sm ghost chap-cancel">Cancel</button>' +
         '</div>' +
         '<div class="edit-hint">Rolls back and deletes any chapters read above this value.</div>' +
+      '</div>' +
+      '<div class="detail-section">' +
+        '<div class="detail-label">MyAnimeList ID</div>' +
+        '<div class="edit-row">' +
+          '<input type="number" class="mal-input" min="0" step="1" value="' + escapeAttr(String(malVal)) + '" placeholder="MAL id" />' +
+          '<button class="btn-sm mal-save">Save</button>' +
+          '<button class="btn-sm ghost mal-clear">Clear</button>' +
+        '</div>' +
+        '<div class="edit-hint">Matching MAL ID ensures import links to your list. 0 = skipped on import.</div>' +
       '</div>' +
       '<div class="detail-section">' +
         '<div class="detail-label">History <span class="muted-count">(' + history.length + ')</span></div>' +
@@ -242,6 +277,11 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#autoToggle').addEventListener('change', async (e) => {
     await send({ type: MSG.SET_SETTING, key: 'autoTrack', value: e.target.checked });
     toast(e.target.checked ? 'Tracking on' : 'Tracking paused', e.target.checked ? 'ok' : '');
+  });
+
+  $('#malToggle').addEventListener('change', async (e) => {
+    await send({ type: MSG.SET_SETTING, key: 'lookupMalIds', value: e.target.checked });
+    toast(e.target.checked ? 'MAL lookup on' : 'MAL lookup off', e.target.checked ? 'ok' : '');
   });
 
   $('#siteFilter').addEventListener('change', async (e) => {

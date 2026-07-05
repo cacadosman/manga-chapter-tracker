@@ -45,7 +45,9 @@ export function mangaKey(source, sourceId) {
 export async function saveChapter(info) {
   const tracker = await getState();
   const key = mangaKey(info.source, info.sourceId);
-  const existing = tracker.manga[key] || {
+  const existing = tracker.manga[key];
+  const isNew = !existing;
+  const entry = existing || {
     key,
     source: info.source || 'comix.to',
     sourceId: info.sourceId,
@@ -56,33 +58,36 @@ export async function saveChapter(info) {
     mangaUrl: info.mangaUrl || null,
     readChapters: {},
     history: [],
+    malLookedUp: false,
     maxChapter: 0,
     firstReadAt: info.detectedAt,
     createdAt: Date.now(),
   };
 
-  if (info.title) existing.title = info.title;
-  if (info.malId) { existing.malId = info.malId; existing.malUrl = info.malUrl; }
-  if (info.poster) existing.poster = info.poster;
-  if (info.mangaUrl) existing.mangaUrl = info.mangaUrl;
+  if (typeof entry.malLookedUp === 'undefined') entry.malLookedUp = false;
 
-  existing.readChapters = existing.readChapters || {};
-  existing.readChapters[info.chapterId] = info.chapterNumber;
+  if (info.title) entry.title = info.title;
+  if (info.malId) { entry.malId = info.malId; entry.malUrl = info.malUrl; }
+  if (info.poster) entry.poster = info.poster;
+  if (info.mangaUrl) entry.mangaUrl = info.mangaUrl;
 
-  existing.history = Array.isArray(existing.history) ? existing.history : [];
-  existing.history = existing.history.filter((h) => h.chapterId !== info.chapterId);
-  existing.history.unshift({ chapterId: info.chapterId, number: info.chapterNumber, readAt: info.detectedAt });
-  if (existing.history.length > HISTORY_CAP) existing.history = existing.history.slice(0, HISTORY_CAP);
+  entry.readChapters = entry.readChapters || {};
+  entry.readChapters[info.chapterId] = info.chapterNumber;
 
-  if (info.chapterNumber > (existing.maxChapter || 0)) existing.maxChapter = info.chapterNumber;
-  existing.lastChapter = info.chapterNumber;
-  existing.lastChapterId = info.chapterId;
-  existing.lastReadAt = info.detectedAt;
-  existing.updatedAt = Date.now();
+  entry.history = Array.isArray(entry.history) ? entry.history : [];
+  entry.history = entry.history.filter((h) => h.chapterId !== info.chapterId);
+  entry.history.unshift({ chapterId: info.chapterId, number: info.chapterNumber, readAt: info.detectedAt });
+  if (entry.history.length > HISTORY_CAP) entry.history = entry.history.slice(0, HISTORY_CAP);
 
-  tracker.manga[key] = existing;
+  if (info.chapterNumber > (entry.maxChapter || 0)) entry.maxChapter = info.chapterNumber;
+  entry.lastChapter = info.chapterNumber;
+  entry.lastChapterId = info.chapterId;
+  entry.lastReadAt = info.detectedAt;
+  entry.updatedAt = Date.now();
+
+  tracker.manga[key] = entry;
   await setState(tracker);
-  return existing;
+  return { isNew, entry };
 }
 
 export async function setChapter(key, chapterNumber) {
@@ -130,4 +135,26 @@ export async function replaceState(incoming) {
   if (!incoming.manga) incoming.manga = {};
   if (!incoming.settings) incoming.settings = { autoTrack: true, siteFilter: 'all' };
   await setState(incoming);
+}
+
+export async function setMalId(key, malId, malUrl, poster) {
+  const tracker = await getState();
+  const existing = tracker.manga[key];
+  if (!existing) return null;
+  existing.malId = malId || null;
+  existing.malUrl = malUrl || null;
+  if (poster && !existing.poster) existing.poster = poster;
+  existing.malLookedUp = true;
+  existing.updatedAt = Date.now();
+  tracker.manga[key] = existing;
+  await setState(tracker);
+  return existing;
+}
+
+export async function markLookedUp(key) {
+  const tracker = await getState();
+  if (tracker.manga[key]) {
+    tracker.manga[key].malLookedUp = true;
+    await setState(tracker);
+  }
 }

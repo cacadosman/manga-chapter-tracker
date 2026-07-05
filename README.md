@@ -13,15 +13,17 @@ Manga reading sites can go down or disappear overnight, taking your reading prog
 - **Chapter history** — Each manga remembers up to 10 recently-read chapters with timestamps. Click "set" on any history entry to restore.
 - **MyAnimeList XML export** — Generates a `mangalist.xml` file matching the MyAnimeList manga list import schema. When a manga has a known MAL link, its database ID is included for direct matching. All entries have `update_on_import=1` so MAL actually processes them.
 - **JSON backup & restore** — Download a full backup of your tracked data and restore it on any machine.
-- **Multi-site support** — Filter the list by website via the site selector dropdown. Currently supports Comix.to; designed to add more sites easily.
+- **Multi-site support** — Filter the list by website via the site selector dropdown. Designed to add more sites easily via the adapter pattern.
+- **MyAnimeList ID lookup** — When a manga from MangaFire or other sites without embedded MAL links is first tracked, the extension optionally queries the free [Jikan API](https://jikan.moe) to find its MyAnimeList ID. Can be disabled in settings.
 - **Paginated list** — Shows 5 manga per page with prev/next navigation, so the popup stays fast even with hundreds of tracked titles.
-- **100% local** — No accounts, no servers, no telemetry. All data lives in your browser via `chrome.storage.local`.
+- **100% local storage** — All reading data lives in your browser via `chrome.storage.local`. No accounts or servers.
 
 ## Supported sites
 
-| Site | URL |
-|------|-----|
-| Comix.to | `https://comix.to/` |
+| Site | URL | MAL link |
+|------|-----|----------|
+| Comix.to | `https://comix.to/` | Embedded in page data |
+| MangaFire | `https://mangafire.to/` | Jikan API lookup |
 
 ## Install
 
@@ -97,6 +99,7 @@ Each tracked manga is stored under a composite key `source:sourceId` (e.g. `comi
   sourceId: 'nxy5',
   title: 'Jujutsu Kaisen Modulo',
   malId: 186597,          // MyAnimeList database ID (if known)
+  malLookedUp: true,     // whether Jikan lookup has been attempted
   maxChapter: 24,         // Highest chapter read (drives MAL export)
   readChapters: { '5499060': 1, '5498894': 3, ... },
   history: [{ chapterId, number, readAt }, ...],  // newest-first, capped at 10
@@ -108,10 +111,10 @@ Each tracked manga is stored under a composite key `source:sourceId` (e.g. `comi
 ## Privacy
 
 This extension:
-- Stores all data locally in your browser (`chrome.storage.local`).
-- Makes **no network requests** of its own.
+- Stores all reading data locally in your browser (`chrome.storage.local`).
+- Makes **optional** title-only lookups to the free [Jikan API](https://jikan.moe) (`api.jikan.moe`) to find MyAnimeList IDs for manga tracked from sites that don't embed MAL links. Only manga titles are sent — no reading history or personal data. This can be disabled in the popup settings.
 - Collects **no analytics, telemetry, or tracking data**.
-- Only runs on sites you've granted host permissions for in the manifest.
+- Only runs on sites granted host permissions in the manifest.
 
 Uninstalling the extension clears all stored data.
 

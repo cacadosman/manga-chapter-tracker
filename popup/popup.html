@@ -15,10 +15,16 @@
         <p id="subtitle">Loading&hellip;</p>
       </div>
     </div>
-    <label class="switch" title="Toggle automatic tracking">
-      <input type="checkbox" id="autoToggle" />
-      <span class="slider"></span>
-    </label>
+    <div class="toggles">
+      <label class="switch" title="Toggle automatic tracking">
+        <input type="checkbox" id="autoToggle" />
+        <span class="slider"></span>
+      </label>
+      <label class="switch" title="Auto-lookup MyAnimeList IDs for manga without a known link">
+        <input type="checkbox" id="malToggle" />
+        <span class="slider"></span>
+      </label>
+    </div>
   </header>
 
   <div class="toolbar">
@@ -39,7 +45,7 @@
 
   <footer class="foot">
     <span id="footStat"></span>
-    <span class="muted">100% local &middot; no account needed</span>
+    <span class="muted">100% local &middot; optional MAL lookup</span>
   </footer>
 
   <script type="module" src="popup.js"></script>

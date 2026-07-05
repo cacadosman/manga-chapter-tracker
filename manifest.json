@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Manga Chapter Tracker",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Automatically tracks manga/manhwa/manhua chapters you read and exports your list to a MyAnimeList-compatible manga list XML.",
   "permissions": ["storage", "downloads"],
-  "host_permissions": ["https://comix.to/*"],
+  "host_permissions": [
+    "https://comix.to/*",
+    "https://mangafire.to/*",
+    "https://api.jikan.moe/*"
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Manga Chapter Tracker"
@@ -22,6 +26,11 @@
     {
       "matches": ["https://comix.to/*"],
       "js": ["src/content/tracker.js", "src/sites/comix.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://mangafire.to/*"],
+      "js": ["src/content/tracker.js", "src/sites/mangafire.js"],
       "run_at": "document_idle"
     }
   ]
