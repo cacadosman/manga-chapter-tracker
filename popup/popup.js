@@ -8,7 +8,7 @@ const $ = (sel) => document.querySelector(sel);
 let currentState = { manga: {}, settings: { autoTrack: true } };
 let expandedKey = null;
 let currentPage = 1;
-const PER_PAGE = 5;
+const PER_PAGE = 10;
 
 function send(msg) {
   return new Promise((resolve) => {
