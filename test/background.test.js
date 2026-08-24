@@ -29,17 +29,19 @@ function loadBackground(chrome) {
     .replace(/setMalId\(/g, 'setMalId_bg(')
     .replace(/async function markLookedUp/, 'async function markLookedUp_bg')
     .replace(/markLookedUp\(/g, 'markLookedUp_bg(')
+    .replace(/async function setPoster/, 'async function setPoster_bg')
+    .replace(/setPoster\(/g, 'setPoster_bg(')
     .replace(/async function setState/, 'async function setState_bg')
     .replace(/setState\(/g, 'setState_bg(')
     .replace(/async function mangaKey/, 'function mangaKey_bg')
     .replace(/mangaKey\(/g, 'mangaKey_bg(');
 
-  const msgDef = 'const MSG = { SAVE_CHAPTER: "SAVE_CHAPTER", GET_STATE: "GET_STATE", SET_CHAPTER: "SET_CHAPTER", SET_MAL_ID: "SET_MAL_ID", IMPORT_MAL: "IMPORT_MAL", DELETE_MANGA: "DELETE_MANGA", CLEAR_ALL: "CLEAR_ALL", SET_SETTING: "SET_SETTING", REPLACE_STATE: "REPLACE_STATE" };';
+  const msgDef = 'const MSG = { SAVE_CHAPTER: "SAVE_CHAPTER", GET_STATE: "GET_STATE", SET_CHAPTER: "SET_CHAPTER", SET_MAL_ID: "SET_MAL_ID", IMPORT_MAL: "IMPORT_MAL", DELETE_MANGA: "DELETE_MANGA", CLEAR_ALL: "CLEAR_ALL", SET_SETTING: "SET_SETTING", REPLACE_STATE: "REPLACE_STATE", REFRESH_POSTER: "REFRESH_POSTER" };';
 
   const code = bgSrc
     .replace(/^import { MSG }.*$/m, msgDef)
-    .replace(/^import \* as storage.*$/m, 'const storage = (() => {\n' + inlineStorage + '\nreturn { getState: getState_background, setState: setState_bg, mangaKey: mangaKey_bg, saveChapter: saveChapter_bg, setChapter: setChapter_bg, setMalId: setMalId_bg, markLookedUp: markLookedUp_bg, deleteManga: deleteManga_bg, clearAll: clearAll_bg, setSetting: setSetting_bg, replaceState: replaceState_bg };\n})();')
-    .replace(/^import \* as jikan.*$/m, 'const jikan = { async lookupByTitle() { return null; } };')
+    .replace(/^import \* as storage.*$/m, 'const storage = (() => {\n' + inlineStorage + '\nreturn { getState: getState_background, setState: setState_bg, mangaKey: mangaKey_bg, saveChapter: saveChapter_bg, setChapter: setChapter_bg, setMalId: setMalId_bg, markLookedUp: markLookedUp_bg, setPoster: setPoster_bg, deleteManga: deleteManga_bg, clearAll: clearAll_bg, setSetting: setSetting_bg, replaceState: replaceState_bg };\n})();')
+    .replace(/^import \* as jikan.*$/m, 'const jikan = { async lookupByTitle() { return null; }, async lookupByMalId() { return { poster: "https://cdn.myanimelist.net/images/manga/repaired.jpg" }; } };')
     .replace(/^import { importFromMal }.*$/m, 'async function importFromMal(entries) { return { added: 0, updated: 0, total: (entries||[]).length, newKeys: [] }; }');
 
   new Function('chrome', code)(chrome);
@@ -106,6 +108,17 @@ describe('background message routing', () => {
     const resp = await dispatch('SET_SETTING', { key: 'malUserName', value: 'test' });
     assert.ok(resp.ok);
     assert.strictEqual(chrome.storage.local._mem.tracker.settings.malUserName, 'test');
+  });
+
+  it('REFRESH_POSTER repairs a blocked cached poster', async () => {
+    await dispatch('SAVE_CHAPTER', { data: {
+      source: 'comix.to', sourceId: 'stale', title: 'Stale Poster', chapterId: 'c1',
+      chapterNumber: 1, malId: 42, poster: 'https://static.comix.to/blocked.jpg', detectedAt: ts(1),
+    } });
+    const resp = await dispatch('REFRESH_POSTER', { key: 'comix.to:stale' });
+    assert.ok(resp.ok);
+    assert.strictEqual(resp.poster, 'https://cdn.myanimelist.net/images/manga/repaired.jpg');
+    assert.strictEqual(chrome.storage.local._mem.tracker.manga['comix.to:stale'].poster, resp.poster);
   });
 
   it('REPLACE_STATE replaces everything', async () => {

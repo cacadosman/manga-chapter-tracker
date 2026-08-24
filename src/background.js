@@ -3,6 +3,57 @@ import * as storage from './shared/storage.js';
 import * as jikan from './shared/jikan.js';
 import { importFromMal } from './shared/mal-import.js';
 
+const posterRefreshQueue = [];
+const posterRefreshPending = new Map();
+let posterRefreshRunning = false;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function refreshPoster(key) {
+  if (!key) return Promise.resolve({ poster: null });
+  if (posterRefreshPending.has(key)) return posterRefreshPending.get(key);
+
+  const promise = new Promise((resolve) => {
+    posterRefreshQueue.push({ key, resolve });
+  });
+  posterRefreshPending.set(key, promise);
+  drainPosterRefreshQueue();
+  return promise;
+}
+
+async function drainPosterRefreshQueue() {
+  if (posterRefreshRunning) return;
+  posterRefreshRunning = true;
+
+  try {
+    while (posterRefreshQueue.length > 0) {
+      const { key, resolve } = posterRefreshQueue.shift();
+      let response = { poster: null };
+      try {
+        const tracker = await storage.getState();
+        const entry = tracker.manga[key];
+        if (entry && entry.malId) {
+          const result = await jikan.lookupByMalId(entry.malId);
+          if (result && result.poster) {
+            await storage.setPoster(key, result.poster);
+            response = { poster: result.poster };
+          } else if (result && result.retry) {
+            response = { poster: null, retry: true };
+          }
+        }
+      } catch (e) {}
+
+      resolve(response);
+      posterRefreshPending.delete(key);
+      if (posterRefreshQueue.length > 0) await delay(350);
+    }
+  } finally {
+    posterRefreshRunning = false;
+  }
+}
+
 async function refreshBadge() {
   const tracker = await storage.getState();
   const count = Object.keys(tracker.manga).length;
@@ -79,6 +130,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           await storage.setMalId(msg.key, msg.malId, msg.malUrl);
           sendResponse({ ok: true });
           break;
+        case MSG.REFRESH_POSTER: {
+          const result = await refreshPoster(msg.key);
+          sendResponse({ ok: true, poster: result.poster || null, retry: result.retry === true });
+          break;
+        }
         case MSG.IMPORT_MAL:
           if (!msg.entries || !Array.isArray(msg.entries)) {
             sendResponse({ ok: false, error: 'invalid_entries' });

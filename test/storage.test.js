@@ -11,7 +11,7 @@ function loadStorage(chrome) {
   const code = storageSrc
     .replace(/^import .*$/m, 'const STORE_KEY="tracker"; const HISTORY_CAP=10;')
     .replace(/export /g, '');
-  const fn = new Function('chrome', code + '\nreturn { getState, setState, mangaKey, saveChapter, setChapter, setMalId, markLookedUp, deleteManga, clearAll, setSetting, replaceState };');
+  const fn = new Function('chrome', code + '\nreturn { getState, setState, mangaKey, saveChapter, setChapter, setMalId, markLookedUp, setPoster, deleteManga, clearAll, setSetting, replaceState };');
   return fn(chrome);
 }
 
@@ -198,6 +198,23 @@ describe('storage', () => {
       await S.setSetting('malUserName', 'testuser');
       const st = await S.getState();
       assert.strictEqual(st.settings.malUserName, 'testuser');
+    });
+  });
+
+  describe('setPoster', () => {
+    it('replaces a stale poster URL for an existing entry', async () => {
+      await S.saveChapter({
+        source: 'comix.to', sourceId: 'nxy5', chapterId: 'c1', chapterNumber: 1,
+        poster: 'https://static.comix.to/blocked.jpg', detectedAt: ts(1),
+      });
+      const updated = await S.setPoster('comix.to:nxy5', 'https://cdn.myanimelist.net/repaired.jpg');
+      assert.strictEqual(updated.poster, 'https://cdn.myanimelist.net/repaired.jpg');
+      const st = await S.getState();
+      assert.strictEqual(st.manga['comix.to:nxy5'].poster, 'https://cdn.myanimelist.net/repaired.jpg');
+    });
+
+    it('returns null for an unknown entry', async () => {
+      assert.strictEqual(await S.setPoster('comix.to:missing', 'https://cdn.example.com/poster.jpg'), null);
     });
   });
 
