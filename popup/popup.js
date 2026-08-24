@@ -62,9 +62,11 @@ function render() {
 
   const parts = pageItems.map((m) => {
     const readCount = Object.keys(m.readChapters || {}).length;
+    const initial = escapeHtml((m.title || '?').charAt(0).toUpperCase());
     const thumb = m.poster
-      ? '<img class="thumb" src="' + escapeAttr(m.poster) + '" alt="" />'
-      : '<div class="thumb-fallback">' + escapeHtml((m.title || '?').charAt(0).toUpperCase()) + '</div>';
+      ? '<img class="thumb" data-poster-key="' + escapeAttr(m.key) + '" src="' + escapeAttr(m.poster) + '" alt="" />' +
+        '<div class="thumb-fallback poster-fallback" data-poster-key="' + escapeAttr(m.key) + '" style="display:none">' + initial + '</div>'
+      : '<div class="thumb-fallback" data-poster-key="' + escapeAttr(m.key) + '">' + initial + '</div>';
     const malBadge = m.malId
       ? '<span class="badge mal" title="MyAnimeList id ' + m.malId + '">MAL</span>'
       : '<span class="badge nomal" title="No MyAnimeList link">no MAL</span>';
@@ -85,6 +87,7 @@ function render() {
     );
   });
   container.innerHTML = parts.join('');
+  attachPosterRecovery(container, pageItems);
 
   renderPager(currentPage, totalPages, list.length);
 
@@ -174,6 +177,53 @@ function render() {
       });
     }
   });
+}
+
+function attachPosterRecovery(container, pageItems) {
+  const itemsByKey = new Map(pageItems.map((m) => [m.key, m]));
+
+  container.querySelectorAll('img.thumb[data-poster-key]').forEach((image) => {
+    const key = image.getAttribute('data-poster-key');
+    const fallback = image.nextElementSibling && image.nextElementSibling.classList.contains('poster-fallback')
+      ? image.nextElementSibling
+      : null;
+    image.addEventListener('error', () => recoverPoster(key, image, fallback), { once: true });
+  });
+
+  // Entries without a cached poster can still recover when they have a MAL ID.
+  container.querySelectorAll('.thumb-fallback[data-poster-key]').forEach((fallback) => {
+    const item = itemsByKey.get(fallback.getAttribute('data-poster-key'));
+    if (item && item.malId) recoverPoster(item.key, null, fallback);
+  });
+}
+
+async function recoverPoster(key, image, fallback) {
+  if (!key || (fallback && fallback.dataset.repairStarted === 'true')) return;
+  if (fallback) fallback.dataset.repairStarted = 'true';
+
+  if (image) image.style.display = 'none';
+  if (fallback) fallback.style.display = 'flex';
+
+  const resp = await send({ type: MSG.REFRESH_POSTER, key });
+  if (!resp || !resp.ok || !resp.poster) return;
+
+  if (!image) {
+    image = document.createElement('img');
+    image.className = 'thumb';
+    image.dataset.posterKey = key;
+    image.alt = '';
+    if (fallback) fallback.before(image);
+  }
+
+  image.onload = () => {
+    image.style.display = '';
+    if (fallback) fallback.style.display = 'none';
+  };
+  image.onerror = () => {
+    image.style.display = 'none';
+    if (fallback) fallback.style.display = 'flex';
+  };
+  image.src = resp.poster;
 }
 
 function renderPager(page, totalPages, totalItems) {
