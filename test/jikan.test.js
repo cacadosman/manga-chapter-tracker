@@ -7,7 +7,7 @@ const jikanSrc = fs.readFileSync(path.join(import.meta.dirname, '..', 'src', 'sh
 
 function loadJikan(fetchFn) {
   const code = jikanSrc.replace(/export /g, '');
-  const fn = new Function('fetch', code + '\nreturn { lookupByTitle };');
+  const fn = new Function('fetch', code + '\nreturn { lookupByTitle, lookupByMalId };');
   return fn(fetchFn);
 }
 
@@ -132,5 +132,31 @@ describe('jikan lookupByTitle', () => {
     jikan = loadJikan(mockFetch);
     const result = await jikan.lookupByTitle('Test');
     assert.strictEqual(result, null);
+  });
+
+  it('looks up a poster by MAL ID and prefers the large image', async () => {
+    mockResponses['https://api.jikan.moe/v4/manga/42'] = {
+      json: {
+        data: {
+          mal_id: 42,
+          url: 'https://myanimelist.net/manga/42/',
+          title: 'Test Manga',
+          images: { jpg: {
+            image_url: 'https://cdn.myanimelist.net/images/manga/small.jpg',
+            large_image_url: 'https://cdn.myanimelist.net/images/manga/large.jpg',
+          } },
+        },
+      },
+    };
+    const result = await jikan.lookupByMalId(42);
+    assert.strictEqual(result.malId, 42);
+    assert.strictEqual(result.poster, 'https://cdn.myanimelist.net/images/manga/large.jpg');
+    assert.strictEqual(result.malUrl, 'https://myanimelist.net/manga/42/');
+  });
+
+  it('returns retry on MAL ID rate limit', async () => {
+    mockResponses['https://api.jikan.moe/v4/manga/42'] = { status: 429, json: {} };
+    const result = await jikan.lookupByMalId(42);
+    assert.strictEqual(result.retry, true);
   });
 });
