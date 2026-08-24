@@ -178,6 +178,21 @@ export async function markLookedUp(key) {
   }
 }
 
+// Replace a stale or blocked poster URL after a source image fails to load.
+export async function setPoster(key, poster) {
+  if (!poster) return null;
+  const tracker = await getState();
+  const existing = tracker.manga[key];
+  if (!existing) return null;
+  if (existing.poster === poster) return existing;
+
+  existing.poster = poster;
+  existing.updatedAt = Date.now();
+  tracker.manga[key] = existing;
+  await setState(tracker);
+  return existing;
+}
+
 // Merge all entries that share the same non-null malId.
 // Oldest entry (by createdAt) becomes the survivor. ReadChapters and
 // history are combined, metadata picks the best available values.
