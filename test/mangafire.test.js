@@ -52,6 +52,7 @@ describe('mangafire adapter', () => {
 
     const matches = [
       '/title/e07wg-convenience-store-worker-from-another-worldd/3548274',
+      '/title/e07wg-convenience-store-worker-from-another-worldd/3548274-chapter-15-en',
       '/title/abc-my-manga/12345',
     ];
     for (const p of matches) {
@@ -65,6 +66,16 @@ describe('mangafire adapter', () => {
     for (const p of nonMatches) {
       it(`rejects ${p}`, () => { assert.strictEqual(mod.TITLE_RE.test(p), false); });
     }
+  });
+
+  describe('TITLE_CHAPTER_RE (current canonical reader)', () => {
+    it('matches /title/{id-slug}/chapter/{chapterId}', () => {
+      assert.ok(mod.TITLE_CHAPTER_RE.test('/title/dkw-one-piece/chapter/9346346'));
+    });
+
+    it('rejects a manga details page', () => {
+      assert.strictEqual(mod.TITLE_CHAPTER_RE.test('/title/dkw-one-piece'), false);
+    });
   });
 
   describe('parseSegment', () => {
@@ -162,8 +173,12 @@ describe('mangafire adapter', () => {
       const mod = loadAdapter('/title/test/123', 'My Manga - Chapter 15', '');
       assert.strictEqual(mod.chapterFromDocTitle(), 15);
     });
+    it('extracts chapter number from the current title format', () => {
+      const mod = loadAdapter('/title/test/chapter/123', 'My Manga - Chapter 15.5', '');
+      assert.strictEqual(mod.chapterFromDocTitle(), 15.5);
+    });
     it('returns null for other formats', () => {
-      const mod = loadAdapter('/read/test/en/chapter-1', 'My Manga \u00b7 Ch.1', '');
+      const mod = loadAdapter('/read/test/en/chapter-1', 'MangaFire - Read Manga Online Free', '');
       assert.strictEqual(mod.chapterFromDocTitle(), null);
     });
   });
@@ -200,6 +215,32 @@ describe('mangafire adapter', () => {
       assert.strictEqual(info.chapterNumberStr, '15');
       assert.strictEqual(info.chapterId, 'e07wg:3548274');
       assert.strictEqual(info.mangaUrl, '/title/e07wg-convenience-store-worker-from-another-worldd');
+    });
+
+    it('Current canonical route: /title/.../chapter/{id}', () => {
+      const mod = loadAdapter('/title/dkw-one-piece/chapter/9346346',
+        'One Piece - Chapter 1190',
+        '<a href="/title/dkw-one-piece">One Piece</a>');
+      const info = mod.mangafireAdapter.extract();
+      assert.ok(info);
+      assert.strictEqual(info.sourceId, 'dkw');
+      assert.strictEqual(info.title, 'One Piece');
+      assert.strictEqual(info.chapterNumber, 1190);
+      assert.strictEqual(info.chapterNumberStr, '1190');
+      assert.strictEqual(info.chapterId, 'dkw:9346346');
+      assert.strictEqual(info.mangaUrl, '/title/dkw-one-piece');
+    });
+
+    it('Current API route: extracts chapter number from the URL', () => {
+      const mod = loadAdapter('/title/nxy5-jujutsu-kaisen-modulo/5499060-chapter-1-en',
+        'Jujutsu Kaisen Modulo - Chapter 1',
+        '<a href="/title/nxy5-jujutsu-kaisen-modulo">Jujutsu Kaisen Modulo</a>');
+      const info = mod.mangafireAdapter.extract();
+      assert.ok(info);
+      assert.strictEqual(info.sourceId, 'nxy5');
+      assert.strictEqual(info.chapterNumber, 1);
+      assert.strictEqual(info.chapterNumberStr, '1');
+      assert.strictEqual(info.chapterId, 'nxy5:5499060');
     });
 
     it('Pattern 2: falls back to slug title without DOM or doc title', () => {
